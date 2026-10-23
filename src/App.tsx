@@ -10,6 +10,12 @@ export interface OpenVideo {
   meta: VideoMeta;
 }
 
+export class UnreadableFileError extends Error {
+  constructor() {
+    super('Android would not let Chrome read that video.');
+  }
+}
+
 export function App() {
   const [video, setVideo] = useState<OpenVideo | null>(null);
 
@@ -26,6 +32,14 @@ export function App() {
   }, [video]);
 
   async function open(file: File) {
+    // Android's photo picker sometimes hands over a file Chrome isn't allowed to read
+    // (e.g. a cloud-only video). Catch that here rather than showing a broken screen.
+    try {
+      await file.slice(0, 16).arrayBuffer();
+    } catch (err) {
+      console.warn('File not readable', err);
+      throw new UnreadableFileError();
+    }
     const meta = await probeVideo(file);
     const name = file.name.replace(/\.[^.]+$/, '');
     setVideo({ file, url: URL.createObjectURL(file), name, meta });

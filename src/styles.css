@@ -407,3 +407,13 @@ button {
 .stage-message p {
   margin: 4px 0;
 }
+
+.browse-files {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 20px;
+  font-size: 17px;
+  font-weight: 600;
+}

@@ -42,3 +42,9 @@ export const IconExpand = (p: P) => (
     <path d="M18 6l-6 6 6 6M11 6l-6 6 6 6" />
   </svg>
 );
+
+export const IconFolder = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
