@@ -7,8 +7,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 // Locally the app is served from the root.
 const base = process.env.BASE_PATH ?? '/';
 
+// Shown on the Home screen so it's obvious which version the phone is running.
+const build = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+
 export default defineConfig({
   base,
+  define: { __APP_BUILD__: JSON.stringify(build) },
   plugins: [
     preact(),
     // Self-signed HTTPS so the phone treats the dev server as a secure page.

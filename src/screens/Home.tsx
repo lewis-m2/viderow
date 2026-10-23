@@ -41,7 +41,10 @@ export function Home({ onOpen }: Props) {
 
       {error && <p class="error">{error}</p>}
 
-      <footer class="home-footer muted">Videos stay on your phone. Nothing is uploaded.</footer>
+      <footer class="home-footer muted">
+        Videos stay on your phone. Nothing is uploaded.
+        <div class="small">Build {__APP_BUILD__}</div>
+      </footer>
     </main>
   );
 }
