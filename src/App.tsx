@@ -1,22 +1,37 @@
+import { useEffect, useState } from 'preact/hooks';
+import { Home } from './screens/Home';
+import { Analyse } from './screens/Analyse';
+import { probeVideo, type VideoMeta } from './video/probe';
+
+export interface OpenVideo {
+  file: File;
+  url: string;
+  name: string;
+  meta: VideoMeta;
+}
+
 export function App() {
-  return (
-    <main class="home">
-      <h1 class="home-title">Rowing Video Coach</h1>
+  const [video, setVideo] = useState<OpenVideo | null>(null);
 
-      <button class="open-video" disabled>
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2" />
-          <path d="M10 9.5v5l4-2.5z" />
-        </svg>
-        <span>
-          <span class="open-video-label">Open video</span>
-          <span class="open-video-sub">From your phone's gallery</span>
-        </span>
-      </button>
+  // Android back gesture returns to Home instead of leaving the app.
+  useEffect(() => {
+    const onPop = () => setVideo(null);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
-      <p class="muted">Setup check: if you can see this full screen from your home screen, milestone 0 works.</p>
+  useEffect(() => {
+    if (!video) return;
+    return () => URL.revokeObjectURL(video.url);
+  }, [video]);
 
-      <footer class="home-footer muted">Videos stay on your phone. Nothing is uploaded.</footer>
-    </main>
-  );
+  async function open(file: File) {
+    const meta = await probeVideo(file);
+    const name = file.name.replace(/\.[^.]+$/, '');
+    setVideo({ file, url: URL.createObjectURL(file), name, meta });
+    history.pushState({ screen: 'analyse' }, '');
+  }
+
+  if (!video) return <Home onOpen={open} />;
+  return <Analyse video={video} onBack={() => history.back()} />;
 }
