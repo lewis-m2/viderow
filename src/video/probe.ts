@@ -1,4 +1,20 @@
-import { createFile, MP4BoxBuffer, type Movie, type Sample } from 'mp4box';
+import { createFile, MP4BoxBuffer, type Box, type Movie, type Sample } from 'mp4box';
+
+/** What the WebCodecs frame cache needs to decode frames itself. */
+export interface DecodeInfo {
+  codec: string;
+  /** Codec setup bytes (contents of the avcC / hvcC / av1C box). */
+  description?: Uint8Array;
+  codedWidth: number;
+  codedHeight: number;
+  /** Clockwise rotation the player applies (0, 90, 180, 270). Decoded frames come out unrotated. */
+  rotation: number;
+  timescale: number;
+  /** Samples in decode (file) order. */
+  samples: Sample[];
+  /** cts of the first displayed frame; frame time = (cts - firstCts) / timescale. */
+  firstCts: number;
+}
 
 export interface VideoMeta {
   /** Presentation time (seconds, from 0) of every frame, in display order. Null if the file couldn't be read. */
@@ -10,9 +26,8 @@ export interface VideoMeta {
   width: number;
   height: number;
   codec: string | null;
-  /** Raw sample table, kept for the frame cache (milestone 2). */
-  samples: Sample[] | null;
-  trackId: number | null;
+  /** Null when the file couldn't be read; stepping then falls back to seeking. */
+  decode: DecodeInfo | null;
   /** Why frame info couldn't be read (shown when the video fails). */
   probeError?: string;
 }
@@ -36,8 +51,7 @@ export async function probeVideo(file: File): Promise<VideoMeta> {
     width: 0,
     height: 0,
     codec: null,
-    samples: null,
-    trackId: null,
+    decode: null,
   };
 }
 
@@ -108,15 +122,41 @@ async function probeMp4(file: File): Promise<VideoMeta> {
   const frameTimes = Float64Array.from(cts, (c) => (c - first) / timescale);
   const totalDuration = track.samples_duration / timescale;
 
+  const entry = mp4.getTrackById(track.id).mdia.minf.stbl.stsd.entries[0] as {
+    avcC?: Box;
+    hvcC?: Box;
+    av1C?: Box;
+  };
+  const configBox = entry.avcC ?? entry.hvcC ?? entry.av1C;
+  const description =
+    configBox?.start !== undefined && configBox.hdr_size !== undefined
+      ? new Uint8Array(buffer.slice(configBox.start + configBox.hdr_size, configBox.start + configBox.size))
+      : undefined;
+
+  // Track matrix [a, b, u, c, d, v, x, y, w]; rotation angle from a and b.
+  const m = track.matrix as ArrayLike<number>;
+  const angle = m ? Math.round((Math.atan2(m[1], m[0]) * 180) / Math.PI) : 0;
+  const rotation = (((Math.round(angle / 90) * 90) % 360) + 360) % 360;
+  const codedWidth = track.video?.width ?? track.track_width;
+  const codedHeight = track.video?.height ?? track.track_height;
+
   return {
     frameTimes,
     fps: totalDuration > 0 ? samples.length / totalDuration : FALLBACK_FPS,
     fpsEstimated: false,
-    width: track.video?.width ?? track.track_width,
-    height: track.video?.height ?? track.track_height,
+    width: codedWidth,
+    height: codedHeight,
     codec: track.codec,
-    samples,
-    trackId: track.id,
+    decode: {
+      codec: track.codec,
+      description,
+      codedWidth,
+      codedHeight,
+      rotation,
+      timescale,
+      samples,
+      firstCts: first,
+    },
   };
 }
 
@@ -134,6 +174,20 @@ export function frameIndexAt(meta: VideoMeta, t: number): number {
     else hi = mid - 1;
   }
   return lo;
+}
+
+/** A time inside frame i (its midpoint), so seeking there shows exactly that frame. */
+export function seekTimeFor(meta: VideoMeta, i: number): number {
+  const times = meta.frameTimes;
+  if (!times) return (i + 0.5) / meta.fps;
+  const start = times[i];
+  const next = i + 1 < times.length ? times[i + 1] : start + 1 / meta.fps;
+  return (start + next) / 2;
+}
+
+/** Start time of frame i. */
+export function frameTime(meta: VideoMeta, i: number): number {
+  return meta.frameTimes ? meta.frameTimes[i] : i / meta.fps;
 }
 
 export function frameCount(meta: VideoMeta, duration: number): number {

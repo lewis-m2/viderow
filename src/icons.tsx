@@ -50,3 +50,19 @@ export const IconGallery = (p: P) => (
     <path d="M21 16l-5-5-9 9" />
   </svg>
 );
+
+/** |◀ one frame back */
+export const IconFrameBack = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 5v14" />
+    <path d="M19 5.5v13L9.5 12z" fill="currentColor" />
+  </svg>
+);
+
+/** ▶| one frame forward */
+export const IconFrameForward = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M18 5v14" />
+    <path d="M5 5.5v13l9.5-6.5z" fill="currentColor" />
+  </svg>
+);

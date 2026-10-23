@@ -417,3 +417,102 @@ button {
   font-size: 17px;
   font-weight: 600;
 }
+
+/* ---------- Frame stepping ---------- */
+.topbar-title {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 4px;
+  background: transparent;
+  text-align: left;
+}
+
+.frame-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.frame-label.is-waiting {
+  color: var(--text-muted);
+}
+
+.frame-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 56px;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.frame-button:active {
+  background: var(--surface-raised);
+}
+
+.frame-button .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.scrub-strip {
+  position: relative;
+  height: 48px;
+  border-radius: var(--radius-control);
+  background-color: var(--surface);
+  /* Small tick every frame, bigger tick every 10 frames; they slide as frames change. */
+  background-image:
+    linear-gradient(to right, var(--text-muted) 0 2px, transparent 2px),
+    linear-gradient(to right, var(--surface-raised) 0 2px, transparent 2px);
+  background-size:
+    calc(var(--tick) * 10) 60%,
+    var(--tick) 35%;
+  background-repeat: repeat-x;
+  /* Percent positions are relative to (width - tile), so add half a tile to centre a tick. */
+  background-position:
+    calc(50% + var(--tick) * 5 + var(--offset) - 1px) center,
+    calc(50% + var(--tick) / 2 + var(--offset) - 1px) center;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.scrub-marker {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: calc(50% - 1.5px);
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.is-landscape .info {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  align-items: center;
+}
+
+.is-landscape .info .scrub-strip {
+  grid-column: 1 / -1;
+  height: 44px;
+}
+
+.is-landscape .frame-button {
+  width: 56px;
+}
+
+.is-landscape .playback-row {
+  gap: 8px;
+}
+
+.mini-controls .frame-button {
+  width: 56px;
+  height: 52px;
+}
