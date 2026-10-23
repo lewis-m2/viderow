@@ -20,7 +20,7 @@ export function Home({ onOpen }: Props) {
       await onOpen(file);
     } catch (err) {
       console.error(err);
-      setError("Couldn't open that video.");
+      setError(`Couldn't open that video: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }

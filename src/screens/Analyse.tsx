@@ -27,6 +27,7 @@ export function Analyse({ video, onBack }: Props) {
   const [rate, setRate] = useState(1);
   const [collapsed, setCollapsed] = useState(false);
   const [scrubVisible, setScrubVisible] = useState(true);
+  const [status, setStatus] = useState<'loading' | 'ready' | string>('loading');
   const fadeTimer = useRef<number | undefined>(undefined);
   const landscape = useMediaQuery('(orientation: landscape)');
   const { meta } = video;
@@ -46,6 +47,14 @@ export function Analyse({ video, onBack }: Props) {
       if (v.paused) setTime(v.currentTime);
     };
     const onMeta = () => setDuration(v.duration);
+    const onLoaded = () => setStatus('ready');
+    const onError = () => {
+      const e = v.error;
+      const kinds = ['', 'loading was stopped', 'network/file read error', 'decoding failed', 'format not supported'];
+      setStatus(`${kinds[e?.code ?? 0] ?? 'unknown error'}${e?.message ? ` (${e.message})` : ''}`);
+    };
+    v.addEventListener('loadeddata', onLoaded);
+    v.addEventListener('error', onError);
     const events = ['play', 'pause', 'ended', 'seeked'] as const;
     events.forEach((e) => v.addEventListener(e, sync));
     v.addEventListener('loadedmetadata', onMeta);
@@ -55,6 +64,8 @@ export function Analyse({ video, onBack }: Props) {
       events.forEach((e) => v.removeEventListener(e, sync));
       v.removeEventListener('loadedmetadata', onMeta);
       v.removeEventListener('durationchange', onMeta);
+      v.removeEventListener('loadeddata', onLoaded);
+      v.removeEventListener('error', onError);
     };
   }, []);
 
@@ -138,6 +149,18 @@ export function Analyse({ video, onBack }: Props) {
           preload="auto"
           disablePictureInPicture
         />
+        {status !== 'ready' && (
+          <div class="stage-message">
+            {status === 'loading' ? (
+              <p>Loading video…</p>
+            ) : (
+              <>
+                <p>Chrome can't play this video: {status}</p>
+                <p class="muted small">{videoDetails(video)}</p>
+              </>
+            )}
+          </div>
+        )}
         {showOverlay && (
           <div class={`overlay-scrub ${scrubVisible ? '' : 'is-hidden'}`}>
             <div class="frame-label small">{frameLabel}</div>
@@ -186,6 +209,13 @@ export function Analyse({ video, onBack }: Props) {
       )}
     </div>
   );
+}
+
+function videoDetails({ file, meta }: OpenVideo): string {
+  const size = `${(file.size / 1e6).toFixed(0)} MB`;
+  const type = file.type || 'unknown type';
+  if (meta.fpsEstimated) return `${type} · ${size} · couldn't read frame info`;
+  return `${type} · ${size} · ${meta.codec} · ${meta.width}×${meta.height} · ${meta.fps.toFixed(2)} fps`;
 }
 
 interface TimelineProps {
