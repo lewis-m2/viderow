@@ -1,5 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
-import { IconFolder, IconVideo } from '../icons';
+import { IconGallery, IconVideo } from '../icons';
 import { UnreadableFileError } from '../App';
 
 interface Props {
@@ -24,7 +24,7 @@ export function Home({ onOpen }: Props) {
       console.error(err);
       if (err instanceof UnreadableFileError) {
         setError(
-          `${err.message} Try "Browse files" and open it from the Camera folder (DCIM › Camera). ` +
+          `${err.message} Try "Open video" and pick it from Files › DCIM › Camera. ` +
             'If the video is only in Google Photos, download it to the phone first.',
         );
       } else {
@@ -39,22 +39,23 @@ export function Home({ onOpen }: Props) {
     <main class="home">
       <h1 class="home-title">Rowing Video Coach</h1>
 
-      <button class="open-video" disabled={busy} onClick={() => galleryInput.current?.click()}>
+      {/* No accept filter: Android shows its general file chooser (Files app), which hands
+          Chrome the real file. The photo picker (accept="video/*") sometimes gives a file
+          Chrome isn't allowed to read (NotReadableError), so it's only the backup. */}
+      <button class="open-video" disabled={busy} onClick={() => filesInput.current?.click()}>
         <IconVideo />
         <span>
           <span class="open-video-label">{busy ? 'Opening…' : 'Open video'}</span>
-          <span class="open-video-sub">From your phone's gallery</span>
+          <span class="open-video-sub">From Files › DCIM › Camera</span>
         </span>
       </button>
-      <input ref={galleryInput} type="file" accept="video/*" hidden onChange={handleFile} />
-
-      {/* No accept filter: Android shows its general file chooser (Files app)
-          instead of the photo picker, which hands over the real file. */}
-      <button class="browse-files" disabled={busy} onClick={() => filesInput.current?.click()}>
-        <IconFolder />
-        <span>Browse files</span>
-      </button>
       <input ref={filesInput} type="file" hidden onChange={handleFile} />
+
+      <button class="browse-files" disabled={busy} onClick={() => galleryInput.current?.click()}>
+        <IconGallery />
+        <span>Use photo picker instead</span>
+      </button>
+      <input ref={galleryInput} type="file" accept="video/*" hidden onChange={handleFile} />
 
       {error && <p class="error">{error}</p>}
 

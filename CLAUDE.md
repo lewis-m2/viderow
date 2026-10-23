@@ -114,7 +114,7 @@ Dark UI, high contrast, big touch targets (≥ 44 px, ideally 48+), usable with 
 Icons: simple stroke icons (inline SVG), no emoji.
 
 Screens (portrait unless noted):
-1. **Home** — title, big orange "Open video / From your phone's gallery" button, recent videos list (thumbnail, name, ★ Reference label if starred, length, number of drawings/snapshots; star/unstar from the item), footer "Videos stay on your phone. Nothing is uploaded."
+1. **Home** — title, big orange "Open video / From Files › DCIM › Camera" button (Android's file chooser; secondary "Use photo picker instead"), recent videos list (thumbnail, name, ★ Reference label if starred, length, number of drawings/snapshots; star/unstar from the item), footer "Videos stay on your phone. Nothing is uploaded."
 2. **Analyse** — top bar (back, video name, fps/length, Compare button, snapshot button, Rec button); video; frame/time row; timeline; scrub strip; playback row (frame back, big round play, frame forward); speed selector; bottom tool tray (Move, Line, Angle, Draw, Arrow, Undo, Clear, Colour).
 3. **Drawing / angle options** — panel with *This frame only / Whole video*, colour swatches, thickness, list of drawings on the frame (with values like "Knee angle 93°", delete each), Clear all.
 4. **Snapshot** — preview, note box ("sent as the WhatsApp caption"), strip of snapshots this session with "Share all", Save and Share buttons.
@@ -142,6 +142,7 @@ Screens (portrait unless noted):
 ## Known risks
 
 - Backwards stepping laggy → frame cache; if still poor, Flutter.
+- Android's photo picker (`accept="video/*"`) can hand Chrome a file it can't read (`NotReadableError`, file named like `1000062870`). Found on the user's Samsung in milestone 1 → the main Open button uses a file input with no `accept` (opens the Files chooser, which works); the photo picker is only a secondary option.
 - HEVC videos may not decode via WebCodecs on some phones → seek fallback, or user turns off the camera's "high efficiency" setting.
 - WhatsApp may drop text shared with an image → also copy note to clipboard.
 - WebM recordings may not play in WhatsApp → prefer MP4.
