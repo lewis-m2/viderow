@@ -1,0 +1,123 @@
+:root {
+  --bg: #0e1116;
+  --surface: #191e26;
+  --surface-raised: #2a323e;
+  --text: #f2f4f7;
+  --text-muted: #9aa4b2;
+  --accent: #ff8a3d;
+  --on-accent: #111;
+  --record: #ff4d4f;
+  --draw-yellow: #ffd60a;
+  --draw-cyan: #4cc9f0;
+  --draw-pink: #ff6fd8;
+  --draw-white: #f2f4f7;
+  --radius-control: 12px;
+  --radius-panel: 20px;
+  --touch: 48px;
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#app {
+  min-height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Home */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.home-title {
+  margin: 8px 0 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.open-video {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--radius-panel);
+  background: var(--accent);
+  color: var(--on-accent);
+  text-align: left;
+}
+
+.open-video .icon {
+  width: 36px;
+  height: 36px;
+}
+
+.open-video:disabled {
+  opacity: 0.85;
+}
+
+.open-video-label {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.open-video-sub {
+  display: block;
+  font-size: 15px;
+}
+
+.home-footer {
+  margin-top: auto;
+  text-align: center;
+  font-size: 14px;
+}
