@@ -13,19 +13,23 @@ export interface VideoMeta {
   /** Raw sample table, kept for the frame cache (milestone 2). */
   samples: Sample[] | null;
   trackId: number | null;
+  /** Why frame info couldn't be read (shown when the video fails). */
+  probeError?: string;
 }
 
 const FALLBACK_FPS = 30;
 
 /** Read frame timing from an MP4/MOV without loading the whole file. */
 export async function probeVideo(file: File): Promise<VideoMeta> {
+  let probeError: string;
   try {
-    const meta = await probeMp4(file);
-    if (meta) return meta;
+    return await probeMp4(file);
   } catch (err) {
     console.warn('Could not read video structure, using estimates', err);
+    probeError = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   }
   return {
+    probeError,
     frameTimes: null,
     fps: FALLBACK_FPS,
     fpsEstimated: true,
@@ -43,8 +47,10 @@ interface BoxPos {
 }
 
 /** Walk the top-level boxes to find ftyp and moov. The moov is often at the end on Android. */
-async function findTopLevelBoxes(file: File): Promise<{ ftyp?: BoxPos; moov?: BoxPos }> {
-  const found: { ftyp?: BoxPos; moov?: BoxPos } = {};
+async function findTopLevelBoxes(
+  file: File,
+): Promise<{ ftyp?: BoxPos; moov?: BoxPos; seen: string[] }> {
+  const found: { ftyp?: BoxPos; moov?: BoxPos; seen: string[] } = { seen: [] };
   let offset = 0;
   while (offset + 8 <= file.size) {
     const header = new DataView(await file.slice(offset, offset + 16).arrayBuffer());
@@ -57,6 +63,7 @@ async function findTopLevelBoxes(file: File): Promise<{ ftyp?: BoxPos; moov?: Bo
     );
     if (size === 1) size = Number(header.getBigUint64(8));
     else if (size === 0) size = file.size - offset;
+    found.seen.push(type.replace(/[^ -~]/g, '?'));
     if (size < 8) break;
     if (type === 'ftyp') found.ftyp = { offset, size };
     if (type === 'moov') {
@@ -68,9 +75,10 @@ async function findTopLevelBoxes(file: File): Promise<{ ftyp?: BoxPos; moov?: Bo
   return found;
 }
 
-async function probeMp4(file: File): Promise<VideoMeta | null> {
-  const { ftyp, moov } = await findTopLevelBoxes(file);
-  if (!moov) return null;
+async function probeMp4(file: File): Promise<VideoMeta> {
+  if (file.size === 0) throw new Error('file is empty (0 bytes)');
+  const { ftyp, moov, seen } = await findTopLevelBoxes(file);
+  if (!moov) throw new Error(`not an MP4/MOV (boxes: ${seen.join(', ') || 'none'})`);
 
   // Build a small "ftyp + moov" file. Sample offsets inside moov stay absolute,
   // so they still point at the right bytes in the real file.
@@ -89,10 +97,10 @@ async function probeMp4(file: File): Promise<VideoMeta | null> {
 
   const movie = info as Movie | null;
   const track = movie?.videoTracks[0];
-  if (!track) return null;
+  if (!track) throw new Error('no video track found');
 
   const samples = mp4.getTrackSamplesInfo(track.id);
-  if (!samples.length) return null;
+  if (!samples.length) throw new Error('video track has no frames');
 
   const timescale = track.timescale;
   const cts = samples.map((s) => s.cts).sort((a, b) => a - b);

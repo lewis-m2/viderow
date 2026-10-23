@@ -214,7 +214,7 @@ export function Analyse({ video, onBack }: Props) {
 function videoDetails({ file, meta }: OpenVideo): string {
   const size = `${(file.size / 1e6).toFixed(0)} MB`;
   const type = file.type || 'unknown type';
-  if (meta.fpsEstimated) return `${type} · ${size} · couldn't read frame info`;
+  if (meta.fpsEstimated) return `${type} · ${size} · frame info: ${meta.probeError ?? 'unknown'}`;
   return `${type} · ${size} · ${meta.codec} · ${meta.width}×${meta.height} · ${meta.fps.toFixed(2)} fps`;
 }
 
