@@ -50,7 +50,7 @@ export function useDrawing(o: Options) {
   const [tool, setToolState] = useState<Tool>('move');
   const [colour, setColour] = useState(COLOURS[0].value);
   const [thickness, setThickness] = useState<Thickness>('medium');
-  const [scope, setScope] = useState<Scope>('frame');
+  const [scope, setScope] = useState<Scope>('video');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
 

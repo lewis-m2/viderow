@@ -14,6 +14,9 @@ import {
   IconExpand,
   IconFrameBack,
   IconFrameForward,
+  IconHome,
+  IconToolsHide,
+  IconToolsShow,
   IconMinus,
   IconPause,
   IconPlay,
@@ -44,8 +47,6 @@ const HOLD_REPEAT_MS = 70;
 const STRIP_PX_PER_FRAME = 14;
 /** Each tap of − / + zooms by this factor. */
 const ZOOM_STEP = 1.5;
-/** At or above this zoom, a paused cached frame is swapped for the sharper video frame. */
-const SHARPEN_ZOOM = 1.5;
 
 const TOOLS: Array<{ tool: Tool; label: string; icon: () => preact.JSX.Element }> = [
   { tool: 'move', label: 'Move', icon: () => <IconMove /> },
@@ -71,6 +72,7 @@ export function Analyse({ video, onBack }: Props) {
   const loupeRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef<() => View>(() => ({ vw: 0, vh: 0, k: 1, ox: 0, oy: 0 }));
   const [panelOpen, setPanelOpen] = useState(false);
+  const [toolsHidden, setToolsHidden] = useState(false);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -105,16 +107,17 @@ export function Analyse({ video, onBack }: Props) {
     layer: layerRef,
     video: ref,
     onTap: showOverlay ? showScrub : undefined,
-    onChange: () => drawing.requestRender(),
+    onChange: () => {
+      drawing.requestRender();
+      const st = stageRef.current;
+      if (st) stepperRef.current?.viewChanged(viewRef.current(), st.clientWidth, st.clientHeight);
+    },
     single: drawing.single,
   });
   viewRef.current = zoom.view;
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
 
-  useEffect(() => {
-    stepperRef.current?.setZoomed(zoom.scale >= SHARPEN_ZOOM);
-  }, [zoom.scale]);
 
   // Stepper + frame cache.
   useEffect(() => {
@@ -123,6 +126,8 @@ export function Analyse({ video, onBack }: Props) {
       setWaiting(isWaiting);
     });
     stepperRef.current = stepper;
+    const st = stageRef.current!;
+    stepper.viewChanged(viewRef.current(), st.clientWidth, st.clientHeight);
     let cache: FrameCache | null = null;
     let cancelled = false;
     FrameCache.create(video.file, meta).then(({ cache: c, reason }) => {
@@ -282,7 +287,14 @@ export function Analyse({ video, onBack }: Props) {
 
   return (
     <div
-      class={`analyse ${landscape ? 'is-landscape' : 'is-portrait'} ${showOverlay ? 'is-collapsed' : ''}`}
+      class={[
+        'analyse',
+        landscape ? 'is-landscape' : 'is-portrait',
+        showOverlay ? 'is-collapsed' : '',
+        landscape && toolsHidden ? 'is-tools-hidden' : '',
+      ].join(' ')}
+      // Stop Chrome's long-press menu (Download video / Copy video frame).
+      onContextMenu={(e) => e.preventDefault()}
     >
       <header class="topbar">
         <button class="icon-button" onClick={onBack} aria-label="Back">
@@ -303,6 +315,11 @@ export function Analyse({ video, onBack }: Props) {
         {/* Drawings sit outside the zoom layer so lines stay crisp; they're mapped through the zoom. */}
         <canvas ref={drawCanvasRef} class="draw-canvas" />
         <canvas ref={loupeRef} class="loupe" />
+        {landscape && toolsHidden && (
+          <button class="tools-tab" onClick={() => setToolsHidden(false)} aria-label="Show drawing tools">
+            <IconToolsShow />
+          </button>
+        )}
         {status !== 'ready' && (
           <div class="stage-message">
             {status === 'loading' ? (
@@ -341,13 +358,14 @@ export function Analyse({ video, onBack }: Props) {
 
       <section class="controls">
         {landscape && (
-          <button
-            class="icon-button collapse-button"
-            onClick={() => setCollapsed(true)}
-            aria-label="Hide panel"
-          >
-            <IconCollapse />
-          </button>
+          <div class="panel-head">
+            <button class="icon-button" onClick={onBack} aria-label="Back to videos">
+              <IconHome />
+            </button>
+            <button class="icon-button" onClick={() => setCollapsed(true)} aria-label="Hide panel">
+              <IconCollapse />
+            </button>
+          </div>
         )}
         <div class="playback-row">
           {backButton()}
@@ -420,6 +438,11 @@ export function Analyse({ video, onBack }: Props) {
           <span class="swatch-icon" style={{ background: drawing.colour }} />
           <span class="tool-label">Colour</span>
         </button>
+        {landscape && (
+          <button class="tool tool-hide" onClick={() => setToolsHidden(true)} aria-label="Hide drawing tools">
+            <IconToolsHide />
+          </button>
+        )}
       </nav>
 
       {panelOpen && (
@@ -446,6 +469,9 @@ export function Analyse({ video, onBack }: Props) {
           {backButton()}
           {playButton('')}
           {forwardButton()}
+          <button class="icon-button mini-home" onClick={onBack} aria-label="Back to videos">
+            <IconHome />
+          </button>
         </section>
       )}
     </div>

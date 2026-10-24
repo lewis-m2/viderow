@@ -177,7 +177,7 @@ export function useZoom({ stage, layer, video, onTap, onChange, single }: Option
     };
 
     const down = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest('.overlay-scrub')) return;
+      if ((e.target as HTMLElement).closest('.overlay-scrub, button')) return;
       el.setPointerCapture(e.pointerId);
       const p = local(e);
       pts.set(e.pointerId, p);

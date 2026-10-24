@@ -174,6 +174,7 @@ button {
 
 .stage {
   position: relative;
+  -webkit-touch-callout: none;
   min-height: 0;
   min-width: 0;
   background: #000;
@@ -307,11 +308,14 @@ button {
 /* Landscape: rail | video | panel */
 .analyse.is-landscape {
   grid-template-columns: 64px minmax(0, 1fr) 240px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    'back stage controls'
     'tools stage controls'
     'tools info controls';
+}
+
+.is-landscape .topbar {
+  display: none;
 }
 
 .is-landscape .topbar {
@@ -346,19 +350,20 @@ button {
   grid-template-columns: repeat(2, 1fr);
 }
 
-.collapse-button {
+.panel-head {
   position: absolute;
   top: 8px;
+  left: 8px;
   right: 8px;
+  display: flex;
+  justify-content: space-between;
 }
 
 /* Landscape collapsed: rail | video (biggest) | essentials */
 .analyse.is-landscape.is-collapsed {
   grid-template-columns: 64px minmax(0, 1fr) 72px;
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas:
-    'back stage mini'
-    'tools stage mini';
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'tools stage mini';
 }
 
 .analyse.is-collapsed .info,
@@ -529,6 +534,8 @@ button {
 /* ---------- Zoom ---------- */
 .zoom-layer {
   position: absolute;
+  /* Touches go to the stage, never the <video> (avoids Chrome's video long-press menu). */
+  pointer-events: none;
   inset: 0;
   transform-origin: 0 0;
   will-change: transform;
@@ -630,23 +637,59 @@ button {
   border: 2px solid var(--text);
 }
 
-/* Landscape: tools down the left rail, icons only; Clear lives in the options panel. */
+/* Landscape: tools down the left rail, icons only, sharing the height evenly. */
 .is-landscape .tools {
   grid-area: tools;
-  grid-template-columns: 1fr;
-  align-content: start;
-  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
   background: transparent;
   overflow-y: auto;
 }
 
 .is-landscape .tool {
-  min-height: 44px;
+  flex: 1 1 0;
+  min-height: 36px;
+  max-height: 52px;
 }
 
-.is-landscape .tool-label,
-.is-landscape .tool-clear {
+.is-landscape .tool-label {
   display: none;
+}
+
+.tool-hide {
+  margin-top: auto;
+}
+
+/* Tools slid away: the video gets the rail's space; a small tab brings them back. */
+.analyse.is-landscape.is-tools-hidden {
+  grid-template-columns: 0 minmax(0, 1fr) 240px;
+}
+
+.analyse.is-landscape.is-collapsed.is-tools-hidden {
+  grid-template-columns: 0 minmax(0, 1fr) 72px;
+}
+
+.analyse.is-tools-hidden .tools {
+  display: none;
+}
+
+.tools-tab {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 48px;
+  height: 52px;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: rgba(25, 30, 38, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-home {
+  margin-top: auto;
 }
 
 .draw-panel {

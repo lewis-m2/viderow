@@ -62,7 +62,7 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 - Tools: move/edit, line, arrow, freehand, **one angle tool (tap 3 points; angle measured at the middle point, 0–180°, shown with an arc and a degree label)**, undo, clear all (with confirm), colour (yellow, cyan, pink, white), thickness (thin, medium, thick).
 - A zoom bubble (loupe) shows under the finger while placing points.
 - Each drawing is set to **this frame only** or **whole video**.
-- Built (milestone 4): new drawings default to *this frame only*; line widths and labels stay the same size on screen at any zoom; the drawing canvas sits outside the zoom layer and maps video coordinates through the zoom (crisper than scaling it with CSS). In landscape the left rail holds Move/Line/Angle/Draw/Arrow/Undo/Colour; Clear all is in the Colour (options) panel. Move tool: drag a point or a whole drawing; tap a drawing to select it, then change its colour/thickness/scope in the panel.
+- Built (milestone 4, revised after phone test): new drawings default to **whole video**; line widths and labels stay the same size on screen at any zoom; the drawing canvas sits outside the zoom layer and maps video coordinates through the zoom. Long-press on the video must never show Chrome's video menu (zoom layer has `pointer-events: none`, contextmenu blocked). Landscape: left rail = Move/Line/Angle/Draw/Arrow/Undo/Clear/Colour + a button to slide the rail away (a pen tab on the video brings it back); the back/home button lives in the right panel (and the collapsed column), not the rail, so it isn't mistaken for hiding tools.
 
 **Snapshots and sharing**
 - Snapshot = exactly what's on screen, **at the current zoom**, with drawings.
@@ -148,6 +148,7 @@ Screens (portrait unless noted):
 - WhatsApp may drop text shared with an image → also copy note to clipboard.
 - WebM recordings may not play in WhatsApp → prefer MP4.
 - Bright sun readability → consider a high-contrast/bright mode toggle.
+- Frame cache keeps only the visible area (plus 15% margin) at screen sharpness, re-decoded ~200 ms after zoom/pan stops; the real video is shown meanwhile. (User saw stepped frames go soft when zoomed with the old fixed 1280 px cache.)
 - Memory → cache only a few seconds of frames; 2-minute video limit. Compare doubles this: halve each video's cache window.
 - Compare with two videos decoding at once may be heavy on older phones → if linked playback stutters, play at the selected speed but update B from its frame cache rather than playing two `<video>` elements in parallel.
 

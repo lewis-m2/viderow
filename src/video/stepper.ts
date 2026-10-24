@@ -1,4 +1,10 @@
-import type { FrameCache } from './frameCache';
+import type { CacheCrop, CachedFrame, FrameCache } from './frameCache';
+import type { View } from '../useZoom';
+
+/** Extra area kept around the visible part when zoomed, as a fraction of the visible size. */
+const CROP_MARGIN = 0.15;
+/** Wait this long after zooming/panning stops before re-decoding at the new crop. */
+const RECROP_DELAY_MS = 200;
 import { frameCount, frameIndexAt, seekTimeFor, type VideoMeta } from './probe';
 
 /**
@@ -15,8 +21,8 @@ export class Stepper {
   private seekTarget = -1;
   private seekIssued = -1;
   private cache: FrameCache | null = null;
-  private zoomed = false;
-  private sharpenTimer = 0;
+  private recropTimer = 0;
+  private lastView: { view: View; W: number; H: number } | null = null;
 
   constructor(
     private video: HTMLVideoElement,
@@ -29,17 +35,20 @@ export class Stepper {
   }
 
   /**
-   * Cached frames are stored smaller than the video. When zoomed in, once stepping pauses we
-   * seek the real video to the same frame and reveal it, so the picture is sharp.
+   * The zoom/pan or stage size changed. The cache keeps only what's visible, at screen
+   * sharpness, so: show the real video for now (it's always sharp and covers everything),
+   * then re-decode around the current frame for the new view once things settle.
    */
-  setZoomed(zoomed: boolean) {
-    this.zoomed = zoomed;
-    if (zoomed) this.scheduleSharpen();
-    else clearTimeout(this.sharpenTimer);
+  viewChanged(view: View, W: number, H: number) {
+    this.lastView = { view, W, H };
+    if (this.showingFrames) this.revealVideo();
+    clearTimeout(this.recropTimer);
+    this.recropTimer = window.setTimeout(() => this.applyCrop(), RECROP_DELAY_MS);
   }
 
   setCache(cache: FrameCache | null) {
     this.cache = cache;
+    this.applyCrop();
     this.prefetch();
   }
 
@@ -104,7 +113,7 @@ export class Stepper {
   }
 
   dispose() {
-    clearTimeout(this.sharpenTimer);
+    clearTimeout(this.recropTimer);
     this.video.removeEventListener('seeked', this.onSeeked);
   }
 
@@ -120,65 +129,121 @@ export class Stepper {
 
   private async showFromCache(frame: number) {
     const cache = this.cache!;
-    const bmp = cache.get(frame) ?? (await cache.request(frame));
+    const f = cache.get(frame) ?? (await cache.request(frame));
     if (this.target !== frame) return; // user has moved on
-    if (bmp) {
+    if (f) {
       cache.setCenter(frame);
-      this.draw(bmp);
+      this.draw(f);
       this.shown = frame;
       this.onChange(frame, false);
-      this.scheduleSharpen();
     } else {
       // Couldn't decode this one; show it via the video instead.
       this.seekVideo(frame);
     }
   }
 
-  private draw(bmp: ImageBitmap) {
+  /** Work out the crop (visible area + margin, at screen sharpness) and give it to the cache. */
+  private applyCrop() {
+    const cache = this.cache;
+    const lv = this.lastView;
+    if (!cache || !lv || !lv.view.vw) return;
+    const { view: v, W, H } = lv;
+    const dpr = window.devicePixelRatio || 1;
+    // Visible area in displayed-video pixels, plus a margin, kept inside the picture.
+    let x0 = Math.max(0, -v.ox / v.k);
+    let x1 = Math.min(v.vw, (W - v.ox) / v.k);
+    let y0 = Math.max(0, -v.oy / v.k);
+    let y1 = Math.min(v.vh, (H - v.oy) / v.k);
+    const mx = (x1 - x0) * CROP_MARGIN;
+    const my = (y1 - y0) * CROP_MARGIN;
+    x0 = Math.max(0, x0 - mx);
+    x1 = Math.min(v.vw, x1 + mx);
+    y0 = Math.max(0, y0 - my);
+    y1 = Math.min(v.vh, y1 + my);
+    // Displayed -> unrotated frame coordinates.
+    const fw = cache.frameWidth;
+    const fh = cache.frameHeight;
+    const toFrame = (x: number, y: number): [number, number] => {
+      switch (cache.rotation) {
+        case 90:
+          return [y, fh - x];
+        case 180:
+          return [fw - x, fh - y];
+        case 270:
+          return [fw - y, x];
+        default:
+          return [x, y];
+      }
+    };
+    const [ax, ay] = toFrame(x0, y0);
+    const [bx, by] = toFrame(x1, y1);
+    const cx0 = Math.floor(Math.max(0, Math.min(ax, bx)));
+    const cy0 = Math.floor(Math.max(0, Math.min(ay, by)));
+    const cx1 = Math.ceil(Math.min(fw, Math.max(ax, bx)));
+    const cy1 = Math.ceil(Math.min(fh, Math.max(ay, by)));
+    if (cx1 - cx0 < 2 || cy1 - cy0 < 2) return;
+    // Bitmap pixels per frame pixel: as sharp as the screen, never bigger than the source.
+    const f = Math.min(1, v.k * dpr);
+    const crop: CacheCrop = {
+      x: cx0,
+      y: cy0,
+      w: cx1 - cx0,
+      h: cy1 - cy0,
+      outW: Math.max(2, Math.round((cx1 - cx0) * f)),
+      outH: Math.max(2, Math.round((cy1 - cy0) * f)),
+    };
+    cache.setCrop(crop);
+    if (this.video.paused) cache.setCenter(this.current());
+  }
+
+  private draw({ bmp, crop }: CachedFrame) {
     const c = this.canvas;
-    const rot = this.cache!.rotation;
+    const cache = this.cache!;
+    const rot = cache.rotation;
     const sideways = rot === 90 || rot === 270;
-    const w = sideways ? bmp.height : bmp.width;
-    const h = sideways ? bmp.width : bmp.height;
+    // The canvas covers the whole picture (so it lines up with the video); the cached crop
+    // is drawn into its place. f = canvas pixels per frame pixel.
+    const f = crop.outW / crop.w;
+    const fw = Math.round(cache.frameWidth * f);
+    const fh = Math.round(cache.frameHeight * f);
+    const w = sideways ? fh : fw;
+    const h = sideways ? fw : fh;
     if (c.width !== w || c.height !== h) {
       c.width = w;
       c.height = h;
     }
     const ctx = c.getContext('2d')!;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
     if (rot === 90) ctx.setTransform(0, 1, -1, 0, w, 0);
     else if (rot === 180) ctx.setTransform(-1, 0, 0, -1, w, h);
     else if (rot === 270) ctx.setTransform(0, -1, 1, 0, 0, h);
-    ctx.drawImage(bmp, 0, 0);
+    ctx.drawImage(bmp, crop.x * f, crop.y * f, crop.w * f, crop.h * f);
     c.style.visibility = 'visible';
     this.showingFrames = true;
   }
 
-  private scheduleSharpen() {
-    clearTimeout(this.sharpenTimer);
-    if (!this.zoomed || !this.showingFrames) return;
+  /** Seek the real video to the frame on screen and swap it in once it has painted. */
+  private revealVideo() {
     const frame = this.target;
-    const stillHere = () => this.target === frame && this.shown === frame && this.showingFrames;
-    this.sharpenTimer = window.setTimeout(() => {
-      if (!stillHere() || !this.video.paused) return;
-      this.video.addEventListener(
-        'seeked',
-        () => {
-          if (!stillHere()) return;
-          // Wait until the video has actually painted the frame, then reveal it.
-          let done = false;
-          const reveal = () => {
-            if (done) return;
-            done = true;
-            if (stillHere()) this.hideCanvas();
-          };
-          this.video.requestVideoFrameCallback(reveal);
-          setTimeout(reveal, 150);
-        },
-        { once: true },
-      );
-      this.video.currentTime = seekTimeFor(this.meta, frame);
-    }, 250);
+    const stillHere = () => this.target === frame && this.showingFrames;
+    if (!this.video.paused) return;
+    this.video.addEventListener(
+      'seeked',
+      () => {
+        if (!stillHere()) return;
+        let done = false;
+        const reveal = () => {
+          if (done) return;
+          done = true;
+          if (stillHere()) this.hideCanvas();
+        };
+        this.video.requestVideoFrameCallback(reveal);
+        setTimeout(reveal, 150);
+      },
+      { once: true },
+    );
+    this.video.currentTime = seekTimeFor(this.meta, frame);
   }
 
   private hideCanvas() {

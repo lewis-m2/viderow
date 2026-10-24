@@ -1,10 +1,29 @@
 import type { DecodeInfo, VideoMeta } from './probe';
 
-/** Cached frames are scaled so their longer side is at most this many pixels. */
+/** Until told the screen size, cached frames are scaled so their longer side is at most this. */
 const CACHE_MAX_SIDE = 1280;
 /** Rough memory allowed for cached frames (4 bytes per pixel). Halve this for compare. */
 export const DEFAULT_CACHE_BYTES = 250e6;
 const MIN_FRAMES = 24;
+
+/**
+ * Which part of the (unrotated) frame to keep, and the bitmap size to store it at. When zoomed
+ * in, only the visible area (plus a margin) is kept, at screen sharpness, so stepped frames
+ * look as sharp as the playing video.
+ */
+export interface CacheCrop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  outW: number;
+  outH: number;
+}
+
+export interface CachedFrame {
+  bmp: ImageBitmap;
+  crop: CacheCrop;
+}
 
 /**
  * Decodes frames around the current position with WebCodecs and keeps them as ImageBitmaps,
@@ -14,16 +33,17 @@ const MIN_FRAMES = 24;
  * decoded after the frames it depends on. Only frames within the window around `center` are kept.
  */
 export class FrameCache {
-  /** Size of cached bitmaps (unrotated, like the decoded frames). */
-  readonly width: number;
-  readonly height: number;
   readonly rotation: number;
+  /** Unrotated frame size. */
+  readonly frameWidth: number;
+  readonly frameHeight: number;
+  crop: CacheCrop;
   broken = false;
   onBroken?: (reason: string) => void;
 
   private decoder: VideoDecoder;
-  private frames = new Map<number, ImageBitmap>();
-  private waiters = new Map<number, Array<(bmp: ImageBitmap | null) => void>>();
+  private frames = new Map<number, CachedFrame>();
+  private waiters = new Map<number, Array<(f: CachedFrame | null) => void>>();
   private tsToFrame = new Map<number, number>();
   /** Display index → decode index. */
   private sampleOfFrame: Int32Array;
@@ -36,7 +56,8 @@ export class FrameCache {
   private windowHalf: number;
   /** Missing frames within this distance get decoded. Smaller than windowHalf by a GOP length,
    *  so a decoded GOP fits inside the kept window and edge frames aren't re-decoded every step. */
-  private planRadius: number;
+  private planRadius = 2;
+  private maxGop = 1;
   private center = 0;
   private queue: number[] = [];
   private inFlight = -1;
@@ -48,14 +69,22 @@ export class FrameCache {
     private file: File,
     private info: DecodeInfo,
     config: VideoDecoderConfig,
-    budgetBytes: number,
+    private budgetBytes: number,
   ) {
-    const scale = Math.min(1, CACHE_MAX_SIDE / Math.max(info.codedWidth, info.codedHeight));
-    this.width = Math.round((info.codedWidth * scale) / 2) * 2;
-    this.height = Math.round((info.codedHeight * scale) / 2) * 2;
     this.rotation = info.rotation;
-    this.maxFrames = Math.max(MIN_FRAMES, Math.floor(budgetBytes / (this.width * this.height * 4)));
-    this.windowHalf = Math.floor(this.maxFrames / 2);
+    this.frameWidth = info.codedWidth;
+    this.frameHeight = info.codedHeight;
+    const scale = Math.min(1, CACHE_MAX_SIDE / Math.max(info.codedWidth, info.codedHeight));
+    this.crop = {
+      x: 0,
+      y: 0,
+      w: info.codedWidth,
+      h: info.codedHeight,
+      outW: Math.round(info.codedWidth * scale),
+      outH: Math.round(info.codedHeight * scale),
+    };
+    this.maxFrames = 0;
+    this.windowHalf = 0;
 
     const { samples, timescale } = info;
     const n = samples.length;
@@ -73,15 +102,14 @@ export class FrameCache {
       this.keyOfSample[i] = key;
     }
     let end = n;
-    let maxGop = 1;
     for (let i = n - 1; i >= 0; i--) {
       this.gopEnd[i] = end;
       if (samples[i].is_sync) {
-        maxGop = Math.max(maxGop, end - i);
+        this.maxGop = Math.max(this.maxGop, end - i);
         end = i;
       }
     }
-    this.planRadius = Math.max(2, this.windowHalf - maxGop);
+    this.sizeWindow();
 
     this.decoder = new VideoDecoder({
       output: (frame) => this.onFrame(frame),
@@ -115,19 +143,47 @@ export class FrameCache {
     }
   }
 
-  get(frame: number): ImageBitmap | undefined {
+  get(frame: number): CachedFrame | undefined {
     return this.frames.get(frame);
   }
 
-  /** Resolves with the frame's bitmap, or null if it couldn't be decoded. */
-  request(frame: number): Promise<ImageBitmap | null> {
+  /**
+   * Change what part of the frame is kept and how sharp. Cached frames are dropped and the
+   * area around the current frame is decoded again.
+   */
+  setCrop(c: CacheCrop) {
+    const o = this.crop;
+    const same =
+      Math.abs(o.x - c.x) < 2 && Math.abs(o.y - c.y) < 2 && Math.abs(o.w - c.w) < 2 &&
+      Math.abs(o.h - c.h) < 2 && Math.abs(o.outW - c.outW) < 4 && Math.abs(o.outH - c.outH) < 4;
+    if (same) return;
+    this.crop = c;
+    this.frames.forEach((f) => f.bmp.close());
+    this.frames.clear();
+    this.failedGops.clear();
+    this.sizeWindow();
+    this.planQueue();
+  }
+
+  /** How many frames fit in the memory budget at the current crop size. */
+  private sizeWindow() {
+    const bytes = Math.max(1, this.crop.outW * this.crop.outH * 4);
+    this.maxFrames = Math.max(MIN_FRAMES, Math.floor(this.budgetBytes / bytes));
+    this.windowHalf = Math.floor(this.maxFrames / 2);
+    // Ideally a decoded GOP fits inside the kept window; with big frames, prefetch at least
+    // half a window ahead even if a few edge frames get decoded twice.
+    this.planRadius = Math.max(2, Math.floor(this.windowHalf / 2), this.windowHalf - this.maxGop);
+  }
+
+  /** Resolves with the frame, or null if it couldn't be decoded. */
+  request(frame: number): Promise<CachedFrame | null> {
     const hit = this.frames.get(frame);
     if (hit) {
       this.setCenter(frame);
       return Promise.resolve(hit);
     }
     if (this.broken) return Promise.resolve(null);
-    const p = new Promise<ImageBitmap | null>((resolve) => {
+    const p = new Promise<CachedFrame | null>((resolve) => {
       const list = this.waiters.get(frame) ?? [];
       list.push(resolve);
       this.waiters.set(frame, list);
@@ -159,7 +215,7 @@ export class FrameCache {
     } catch {
       /* already closed */
     }
-    this.frames.forEach((b) => b.close());
+    this.frames.forEach((f) => f.bmp.close());
     this.frames.clear();
     this.waiters.forEach((list) => list.forEach((r) => r(null)));
     this.waiters.clear();
@@ -236,8 +292,14 @@ export class FrameCache {
         }),
       );
     }
+    const cropAtStart = this.crop;
     await this.decoder.flush();
     await Promise.all(this.pendingBitmaps);
+    // View changed mid-decode: some frames were made at the old crop. Decode again.
+    if (this.crop !== cropAtStart) {
+      this.planQueue();
+      return;
+    }
 
     // Anyone still waiting on a frame of this GOP won't get it.
     let missing = false;
@@ -257,12 +319,13 @@ export class FrameCache {
       frame.close();
       return;
     }
-    const p = createImageBitmap(frame, {
-      resizeWidth: this.width,
-      resizeHeight: this.height,
+    const crop = this.crop;
+    const p = createImageBitmap(frame, crop.x, crop.y, crop.w, crop.h, {
+      resizeWidth: crop.outW,
+      resizeHeight: crop.outH,
       resizeQuality: 'medium',
     })
-      .then((bmp) => this.store(idx, bmp))
+      .then((bmp) => this.store(idx, { bmp, crop }))
       .catch((err) => console.warn('createImageBitmap failed', err))
       .finally(() => {
         frame.close();
@@ -271,16 +334,18 @@ export class FrameCache {
     this.pendingBitmaps.add(p);
   }
 
-  private store(idx: number, bmp: ImageBitmap) {
-    if (this.broken || !this.wanted(idx)) {
-      bmp.close();
+  private store(idx: number, f: CachedFrame) {
+    // Made with an old crop (view changed while decoding): not wanted.
+    if (this.broken || !this.wanted(idx) || f.crop !== this.crop) {
+      f.bmp.close();
       return;
     }
-    this.frames.set(idx, bmp);
+    this.frames.get(idx)?.bmp.close();
+    this.frames.set(idx, f);
     const list = this.waiters.get(idx);
     if (list) {
       this.waiters.delete(idx);
-      list.forEach((r) => r(bmp));
+      list.forEach((r) => r(f));
     }
     // Over budget: drop the frames farthest from the center.
     while (this.frames.size > this.maxFrames) {
@@ -299,7 +364,7 @@ export class FrameCache {
   }
 
   private evict(frame: number) {
-    this.frames.get(frame)?.close();
+    this.frames.get(frame)?.bmp.close();
     this.frames.delete(frame);
   }
 

@@ -132,3 +132,25 @@ export const IconClose = (p: P) => (
     <path d="M6 6l12 12M18 6L6 18" />
   </svg>
 );
+
+export const IconHome = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 11l8-7 8 7M6 9.5V20h4.5v-6h3v6H18V9.5" />
+  </svg>
+);
+
+/** Slide the tool rail away (chevron pointing left, towards the edge) */
+export const IconToolsHide = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M14 6l-6 6 6 6" />
+    <path d="M19 4v16" />
+  </svg>
+);
+
+/** Bring the tool rail back: pen + chevron */
+export const IconToolsShow = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 20l1-4 9-9 3 3-9 9z" />
+    <path d="M17 13l3-3-3-3" />
+  </svg>
+);
