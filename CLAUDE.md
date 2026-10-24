@@ -130,7 +130,7 @@ Screens (portrait unless noted):
 
 0. **Setup** — Vite + TS + Preact project, GitHub repo, HTTPS hosting with auto-deploy, PWA manifest/icon/service worker, base styles. *User checks:* installs to home screen and opens full screen.
 1. **Load and play** — open video from gallery, read fps and frame count, play/pause, speeds, timeline with frame/time, portrait + landscape layouts, collapsible landscape panel. *User checks:* a real crew video plays slowly in both orientations.
-2. **Frame stepping (decision gate)** — frame buttons (hold to repeat), scrub strip, WebCodecs frame cache, seek-based fallback. *User checks:* stepping through a catch is smooth → stay web, or discuss Flutter.
+2. **Frame stepping (decision gate)** — frame buttons (hold to repeat), scrub strip, WebCodecs frame cache, seek-based fallback. *User checks:* stepping through a catch is smooth → stay web, or discuss Flutter. **Passed 2026-10-24 on the user's Samsung: stepping forward/back and the scrub strip work well → staying web.**
 3. **Zoom and pan** — pinch, two-finger pan, double-tap reset, − / +, zoom locked during playback, gesture separation. *User checks:* can follow one seat through a stroke.
 4. **Drawing** — drawing model in video coordinates, line/arrow/freehand, 3-point angle, loupe, colours, thickness, frame-only vs whole-video, move/edit, undo, clear all. *User checks:* measures back and knee angles on real footage.
 5. **Snapshots and sharing** — capture current view, note, Web Share to WhatsApp, save, share several. *User checks:* athlete receives image + note.

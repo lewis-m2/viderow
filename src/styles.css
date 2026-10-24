@@ -358,8 +358,8 @@ button {
   grid-template-areas: 'rail stage mini';
 }
 
-.is-collapsed .info,
-.is-collapsed .controls {
+.analyse.is-collapsed .info,
+.analyse.is-collapsed .controls {
   display: none;
 }
 
@@ -515,4 +515,10 @@ button {
 .mini-controls .frame-button {
   width: 56px;
   height: 52px;
+}
+
+/* Buttons inside the landscape panel sit on a surface, so lift them one step. */
+.is-landscape .controls .speed:not(.is-selected),
+.is-landscape .controls .frame-button {
+  background: var(--surface-raised);
 }
