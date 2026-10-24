@@ -15,6 +15,8 @@ export class Stepper {
   private seekTarget = -1;
   private seekIssued = -1;
   private cache: FrameCache | null = null;
+  private zoomed = false;
+  private sharpenTimer = 0;
 
   constructor(
     private video: HTMLVideoElement,
@@ -24,6 +26,16 @@ export class Stepper {
     private onChange: (frame: number, waiting: boolean) => void,
   ) {
     video.addEventListener('seeked', this.onSeeked);
+  }
+
+  /**
+   * Cached frames are stored smaller than the video. When zoomed in, once stepping pauses we
+   * seek the real video to the same frame and reveal it, so the picture is sharp.
+   */
+  setZoomed(zoomed: boolean) {
+    this.zoomed = zoomed;
+    if (zoomed) this.scheduleSharpen();
+    else clearTimeout(this.sharpenTimer);
   }
 
   setCache(cache: FrameCache | null) {
@@ -92,6 +104,7 @@ export class Stepper {
   }
 
   dispose() {
+    clearTimeout(this.sharpenTimer);
     this.video.removeEventListener('seeked', this.onSeeked);
   }
 
@@ -114,6 +127,7 @@ export class Stepper {
       this.draw(bmp);
       this.shown = frame;
       this.onChange(frame, false);
+      this.scheduleSharpen();
     } else {
       // Couldn't decode this one; show it via the video instead.
       this.seekVideo(frame);
@@ -138,6 +152,33 @@ export class Stepper {
     ctx.drawImage(bmp, 0, 0);
     c.style.visibility = 'visible';
     this.showingFrames = true;
+  }
+
+  private scheduleSharpen() {
+    clearTimeout(this.sharpenTimer);
+    if (!this.zoomed || !this.showingFrames) return;
+    const frame = this.target;
+    const stillHere = () => this.target === frame && this.shown === frame && this.showingFrames;
+    this.sharpenTimer = window.setTimeout(() => {
+      if (!stillHere() || !this.video.paused) return;
+      this.video.addEventListener(
+        'seeked',
+        () => {
+          if (!stillHere()) return;
+          // Wait until the video has actually painted the frame, then reveal it.
+          let done = false;
+          const reveal = () => {
+            if (done) return;
+            done = true;
+            if (stillHere()) this.hideCanvas();
+          };
+          this.video.requestVideoFrameCallback(reveal);
+          setTimeout(reveal, 150);
+        },
+        { once: true },
+      );
+      this.video.currentTime = seekTimeFor(this.meta, frame);
+    }, 250);
   }
 
   private hideCanvas() {

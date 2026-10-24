@@ -7,14 +7,17 @@ import {
   IconExpand,
   IconFrameBack,
   IconFrameForward,
+  IconMinus,
   IconPause,
   IconPlay,
+  IconPlus,
 } from '../icons';
 import { formatCount, formatFps, formatLength, formatTime } from '../format';
 import { frameCount, frameIndexAt, frameTime } from '../video/probe';
 import { FrameCache } from '../video/frameCache';
 import { Stepper } from '../video/stepper';
 import { useMediaQuery } from '../useMediaQuery';
+import { MAX_ZOOM, MIN_ZOOM, useZoom } from '../useZoom';
 
 const SPEEDS = [
   { rate: 1, label: '1×' },
@@ -29,6 +32,10 @@ const HOLD_DELAY_MS = 350;
 const HOLD_REPEAT_MS = 70;
 /** Finger travel on the scrub strip for one frame. */
 const STRIP_PX_PER_FRAME = 14;
+/** Each tap of − / + zooms by this factor. */
+const ZOOM_STEP = 1.5;
+/** At or above this zoom, a paused cached frame is swapped for the sharper video frame. */
+const SHARPEN_ZOOM = 1.5;
 
 type StepMode = { kind: 'checking' } | { kind: 'fast' } | { kind: 'basic'; reason: string };
 
@@ -40,6 +47,8 @@ interface Props {
 export function Analyse({ video, onBack }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -53,6 +62,17 @@ export function Analyse({ video, onBack }: Props) {
   const fadeTimer = useRef<number | undefined>(undefined);
   const landscape = useMediaQuery('(orientation: landscape)');
   const { meta } = video;
+  const showOverlay = landscape && collapsed;
+  const zoom = useZoom({
+    stage: stageRef,
+    layer: layerRef,
+    video: ref,
+    onTap: showOverlay ? showScrub : undefined,
+  });
+
+  useEffect(() => {
+    stepperRef.current?.setZoomed(zoom.scale >= SHARPEN_ZOOM);
+  }, [zoom.scale]);
 
   // Stepper + frame cache.
   useEffect(() => {
@@ -190,7 +210,6 @@ export function Analyse({ video, onBack }: Props) {
   ]
     .filter(Boolean)
     .join(' · ');
-  const showOverlay = landscape && collapsed;
 
   function showDetails() {
     const lines = [
@@ -234,9 +253,12 @@ export function Analyse({ video, onBack }: Props) {
         </button>
       </header>
 
-      <div class="stage" onPointerDown={showOverlay ? showScrub : undefined}>
-        <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture />
-        <canvas ref={canvasRef} class="frame-canvas" />
+      <div class="stage" ref={stageRef}>
+        {/* One transform moves the video and the cached frame together. */}
+        <div class="zoom-layer" ref={layerRef}>
+          <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture />
+          <canvas ref={canvasRef} class="frame-canvas" />
+        </div>
         {status !== 'ready' && (
           <div class="stage-message">
             {status === 'loading' ? (
@@ -293,6 +315,25 @@ export function Analyse({ video, onBack }: Props) {
               {s.label}
             </button>
           ))}
+        </div>
+        <div class="zoom-row">
+          <button
+            class="zoom-button"
+            onClick={() => zoom.zoomBy(1 / ZOOM_STEP)}
+            disabled={zoom.scale <= MIN_ZOOM}
+            aria-label="Zoom out"
+          >
+            <IconMinus />
+          </button>
+          <span class="zoom-level">{zoom.scale === 1 ? '1×' : `${zoom.scale.toFixed(1)}×`}</span>
+          <button
+            class="zoom-button"
+            onClick={() => zoom.zoomBy(ZOOM_STEP)}
+            disabled={zoom.scale >= MAX_ZOOM}
+            aria-label="Zoom in"
+          >
+            <IconPlus />
+          </button>
         </div>
       </section>
 

@@ -66,3 +66,15 @@ export const IconFrameForward = (p: P) => (
     <path d="M5 5.5v13l9.5-6.5z" fill="currentColor" />
   </svg>
 );
+
+export const IconMinus = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12h14" />
+  </svg>
+);
+
+export const IconPlus = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
