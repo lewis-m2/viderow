@@ -275,6 +275,12 @@ export function Analyse({ video, onBack }: Props) {
           <div class={`overlay-scrub ${scrubVisible ? '' : 'is-hidden'}`}>
             <div class={`frame-label small ${waiting ? 'is-waiting' : ''}`}>{frameLabel}</div>
             <Timeline time={time} duration={duration} onSeek={seek} onActivity={showScrub} />
+            <ScrubStrip
+              frame={frameIdx}
+              onStart={() => stepperRef.current?.current() ?? frameIdx}
+              onMove={(f) => stepperRef.current?.goTo(f)}
+              onActivity={showScrub}
+            />
           </div>
         )}
       </div>
@@ -397,6 +403,8 @@ function ScrubStrip(props: {
   frame: number;
   onStart: () => number;
   onMove: (frame: number) => void;
+  /** Called while in use (keeps the fading overlay visible). */
+  onActivity?: () => void;
 }) {
   const drag = useRef<{ x: number; base: number; last: number } | null>(null);
   const offset = -((props.frame * STRIP_PX_PER_FRAME) % (STRIP_PX_PER_FRAME * 10));
@@ -412,6 +420,7 @@ function ScrubStrip(props: {
       style={{ '--offset': `${offset}px`, '--tick': `${STRIP_PX_PER_FRAME}px` }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
+        props.onActivity?.();
         const base = props.onStart();
         drag.current = { x: e.clientX, base, last: base };
       }}
@@ -422,6 +431,7 @@ function ScrubStrip(props: {
         const f = d.base + Math.round((d.x - e.clientX) / STRIP_PX_PER_FRAME);
         if (f !== d.last) {
           d.last = f;
+          props.onActivity?.();
           props.onMove(f);
         }
       }}
