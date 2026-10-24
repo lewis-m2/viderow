@@ -24,19 +24,57 @@ interface Rect {
   h: number;
 }
 
+/** The current view: how video pixels map to stage (CSS) pixels. */
+export interface View {
+  /** Video size in pixels (as displayed, rotation applied). 0 until the video has loaded. */
+  vw: number;
+  vh: number;
+  /** Stage pixels per video pixel. */
+  k: number;
+  /** Stage position of video pixel (0, 0). */
+  ox: number;
+  oy: number;
+}
+
+export const toStage = (v: View, p: { x: number; y: number }) => ({
+  x: v.ox + p.x * v.k,
+  y: v.oy + p.y * v.k,
+});
+
+export const toVideo = (v: View, p: { x: number; y: number }) => ({
+  x: (p.x - v.ox) / v.k,
+  y: (p.y - v.oy) / v.k,
+});
+
+/**
+ * One-finger gestures can be handed to someone else (the drawing tools). `start` returns true
+ * to claim the gesture. If a second finger arrives, `cancel` is called and it becomes a pinch.
+ */
+export interface SingleFingerHandler {
+  start(p: { x: number; y: number }): boolean;
+  move(p: { x: number; y: number }): void;
+  end(p: { x: number; y: number }): void;
+  cancel(): void;
+}
+
 interface Options {
   stage: RefObject<HTMLElement | null>;
   layer: RefObject<HTMLElement | null>;
   video: RefObject<HTMLVideoElement | null>;
   /** Single tap on the stage (not part of a double tap or pinch). */
   onTap?: () => void;
+  /** Called after every change of zoom/pan or stage size. */
+  onChange?: () => void;
+  single?: RefObject<SingleFingerHandler | null>;
 }
 
-export function useZoom({ stage, layer, video, onTap }: Options) {
+export function useZoom({ stage, layer, video, onTap, onChange, single }: Options) {
   const [scale, setScale] = useState(1);
   const zoom = useRef<Zoom>({ s: 1, fx: 0.5, fy: 0.5 });
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   /** Where the video picture sits inside the stage at 1× (object-fit: contain). */
   function contentRect(): Rect {
@@ -79,6 +117,17 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
     const { tx, ty } = toTranslate(z, contentRect());
     layer.current.style.transform = `translate(${tx}px, ${ty}px) scale(${z.s})`;
     setScale(Math.round(z.s * 10) / 10);
+    onChangeRef.current?.();
+  }
+
+  function view(): View {
+    const vw = video.current?.videoWidth ?? 0;
+    const vh = video.current?.videoHeight ?? 0;
+    if (!stage.current || !vw || !vh) return { vw: 0, vh: 0, k: 1, ox: 0, oy: 0 };
+    const r = contentRect();
+    const z = zoom.current;
+    const { tx, ty } = toTranslate(z, r);
+    return { vw, vh, k: (z.s * r.w) / vw, ox: tx + z.s * r.x, oy: ty + z.s * r.y };
   }
 
   /** Zoom to scale s keeping the stage point (px, py) fixed under the finger. */
@@ -109,6 +158,7 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
     const pts = new Map<number, { x: number; y: number }>();
     let pinch: { d0: number; mx: number; my: number; s0: number; tx0: number; ty0: number } | null = null;
     let usedTwoFingers = false;
+    let claimed = false;
     let tap: { x: number; y: number; t: number } | null = null;
     let lastTap: { x: number; y: number; t: number } | null = null;
 
@@ -133,8 +183,12 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
       pts.set(e.pointerId, p);
       if (pts.size === 1) {
         usedTwoFingers = false;
-        tap = { ...p, t: e.timeStamp };
+        claimed = single?.current?.start(p) ?? false;
+        tap = claimed ? null : { ...p, t: e.timeStamp };
       } else if (pts.size === 2) {
+        // Two fingers never draw: hand back anything the first finger started.
+        if (claimed) single?.current?.cancel();
+        claimed = false;
         usedTwoFingers = true;
         tap = null;
         startPinch();
@@ -145,6 +199,10 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
       if (!pts.has(e.pointerId)) return;
       const p = local(e);
       pts.set(e.pointerId, p);
+      if (claimed && pts.size === 1) {
+        single?.current?.move(p);
+        return;
+      }
       if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > TAP_SLOP_PX) tap = null;
       if (pinch && pts.size >= 2) {
         const { d, mx, my } = twoPoints();
@@ -158,7 +216,14 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
     };
 
     const up = (e: PointerEvent) => {
+      const last = pts.get(e.pointerId);
       if (!pts.delete(e.pointerId)) return;
+      if (claimed && pts.size === 0) {
+        claimed = false;
+        if (e.type === 'pointercancel') single?.current?.cancel();
+        else single?.current?.end(last ?? local(e));
+        return;
+      }
       if (pts.size < 2) pinch = null;
       if (pts.size === 2) startPinch();
       if (pts.size > 0) return;
@@ -205,5 +270,5 @@ export function useZoom({ stage, layer, video, onTap }: Options) {
     };
   }, []);
 
-  return { scale, zoomBy, reset };
+  return { scale, zoomBy, reset, view };
 }

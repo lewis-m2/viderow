@@ -78,3 +78,57 @@ export const IconPlus = (p: P) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+
+/** Move / edit: four-way arrows */
+export const IconMove = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" />
+  </svg>
+);
+
+export const IconLine = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 18L18 6" />
+    <circle cx="5" cy="19" r="1.8" fill="currentColor" />
+    <circle cx="19" cy="5" r="1.8" fill="currentColor" />
+  </svg>
+);
+
+export const IconAngle = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M19 5L5 19h15" />
+    <path d="M10.5 13.5a6 6 0 0 1 2 5.5" />
+  </svg>
+);
+
+/** Freehand */
+export const IconDraw = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3 17c3-6 5-6 6-3s3 3 5-1 4-5 7-3" />
+  </svg>
+);
+
+export const IconArrow = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 19L19 5M10 5h9v9" />
+  </svg>
+);
+
+export const IconUndo = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+  </svg>
+);
+
+export const IconTrash = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </svg>
+);
+
+export const IconClose = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);

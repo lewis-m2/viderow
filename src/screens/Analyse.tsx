@@ -2,7 +2,14 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { OpenVideo } from '../App';
 import {
+  IconAngle,
+  IconArrow,
   IconBack,
+  IconDraw,
+  IconLine,
+  IconMove,
+  IconTrash,
+  IconUndo,
   IconCollapse,
   IconExpand,
   IconFrameBack,
@@ -17,7 +24,10 @@ import { frameCount, frameIndexAt, frameTime } from '../video/probe';
 import { FrameCache } from '../video/frameCache';
 import { Stepper } from '../video/stepper';
 import { useMediaQuery } from '../useMediaQuery';
-import { MAX_ZOOM, MIN_ZOOM, useZoom } from '../useZoom';
+import { MAX_ZOOM, MIN_ZOOM, useZoom, type View } from '../useZoom';
+import { useDrawing } from '../drawing/useDrawing';
+import { DrawingPanel } from '../drawing/DrawingPanel';
+import type { Tool } from '../drawing/model';
 
 const SPEEDS = [
   { rate: 1, label: '1×' },
@@ -37,6 +47,14 @@ const ZOOM_STEP = 1.5;
 /** At or above this zoom, a paused cached frame is swapped for the sharper video frame. */
 const SHARPEN_ZOOM = 1.5;
 
+const TOOLS: Array<{ tool: Tool; label: string; icon: () => preact.JSX.Element }> = [
+  { tool: 'move', label: 'Move', icon: () => <IconMove /> },
+  { tool: 'line', label: 'Line', icon: () => <IconLine /> },
+  { tool: 'angle', label: 'Angle', icon: () => <IconAngle /> },
+  { tool: 'free', label: 'Draw', icon: () => <IconDraw /> },
+  { tool: 'arrow', label: 'Arrow', icon: () => <IconArrow /> },
+];
+
 type StepMode = { kind: 'checking' } | { kind: 'fast' } | { kind: 'basic'; reason: string };
 
 interface Props {
@@ -49,6 +67,10 @@ export function Analyse({ video, onBack }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
+  const drawCanvasRef = useRef<HTMLCanvasElement>(null);
+  const loupeRef = useRef<HTMLCanvasElement>(null);
+  const viewRef = useRef<() => View>(() => ({ vw: 0, vh: 0, k: 1, ox: 0, oy: 0 }));
+  const [panelOpen, setPanelOpen] = useState(false);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -63,12 +85,32 @@ export function Analyse({ video, onBack }: Props) {
   const landscape = useMediaQuery('(orientation: landscape)');
   const { meta } = video;
   const showOverlay = landscape && collapsed;
+  const total = frameCount(meta, duration);
+  const frameIdx = Math.min(frameIndexAt(meta, time), total - 1);
+
+  const drawing = useDrawing({
+    stage: stageRef,
+    canvas: drawCanvasRef,
+    loupe: loupeRef,
+    video: ref,
+    frameCanvas: canvasRef,
+    getView: () => viewRef.current(),
+    frame: frameIdx,
+    onDrawStart: () => {
+      if (!ref.current!.paused) ref.current!.pause();
+    },
+  });
   const zoom = useZoom({
     stage: stageRef,
     layer: layerRef,
     video: ref,
     onTap: showOverlay ? showScrub : undefined,
+    onChange: () => drawing.requestRender(),
+    single: drawing.single,
   });
+  viewRef.current = zoom.view;
+  const drawingRef = useRef(drawing);
+  drawingRef.current = drawing;
 
   useEffect(() => {
     stepperRef.current?.setZoomed(zoom.scale >= SHARPEN_ZOOM);
@@ -156,7 +198,8 @@ export function Analyse({ video, onBack }: Props) {
   // Keyboard (handy when developing on a computer): space plays, arrows step.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Space') togglePlay();
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') drawingRef.current.undo();
+      else if (e.code === 'Space') togglePlay();
       else if (e.code === 'ArrowLeft') step(-1);
       else if (e.code === 'ArrowRight') step(1);
       else return;
@@ -198,8 +241,6 @@ export function Analyse({ video, onBack }: Props) {
     return () => clearTimeout(fadeTimer.current);
   }, [landscape, collapsed]);
 
-  const total = frameCount(meta, duration);
-  const frameIdx = Math.min(frameIndexAt(meta, time), total - 1);
   const frameLabel = `Frame ${formatCount(frameIdx + 1)} / ${formatCount(total)} · ${formatTime(time)}`;
   const stepLabel =
     stepMode.kind === 'fast' ? 'fast stepping' : stepMode.kind === 'basic' ? 'basic stepping' : '';
@@ -259,6 +300,9 @@ export function Analyse({ video, onBack }: Props) {
           <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture />
           <canvas ref={canvasRef} class="frame-canvas" />
         </div>
+        {/* Drawings sit outside the zoom layer so lines stay crisp; they're mapped through the zoom. */}
+        <canvas ref={drawCanvasRef} class="draw-canvas" />
+        <canvas ref={loupeRef} class="loupe" />
         {status !== 'ready' && (
           <div class="stage-message">
             {status === 'loading' ? (
@@ -342,6 +386,57 @@ export function Analyse({ video, onBack }: Props) {
           </button>
         </div>
       </section>
+
+      <nav class="tools" aria-label="Drawing tools">
+        {TOOLS.map((t) => (
+          <button
+            class={`tool ${drawing.tool === t.tool ? 'is-selected' : ''}`}
+            aria-pressed={drawing.tool === t.tool}
+            aria-label={t.label}
+            onClick={() => drawing.setTool(t.tool)}
+          >
+            {t.icon()}
+            <span class="tool-label">{t.label}</span>
+          </button>
+        ))}
+        <button class="tool" onClick={drawing.undo} disabled={!drawing.canUndo} aria-label="Undo">
+          <IconUndo />
+          <span class="tool-label">Undo</span>
+        </button>
+        <button
+          class="tool tool-clear"
+          onClick={drawing.clearAll}
+          disabled={!drawing.drawings.length}
+          aria-label="Clear all"
+        >
+          <IconTrash />
+          <span class="tool-label">Clear</span>
+        </button>
+        <button
+          class={`tool ${panelOpen ? 'is-selected' : ''}`}
+          onClick={() => setPanelOpen(!panelOpen)}
+          aria-label="Colour and drawing options"
+        >
+          <span class="swatch-icon" style={{ background: drawing.colour }} />
+          <span class="tool-label">Colour</span>
+        </button>
+      </nav>
+
+      {panelOpen && (
+        <DrawingPanel
+          colour={drawing.colour}
+          thickness={drawing.thickness}
+          scope={drawing.scope}
+          onStyle={drawing.restyle}
+          drawings={drawing.visible}
+          total={drawing.drawings.length}
+          selectedId={drawing.selectedId}
+          onSelect={drawing.select}
+          onDelete={drawing.remove}
+          onClearAll={drawing.clearAll}
+          onClose={() => setPanelOpen(false)}
+        />
+      )}
 
       {showOverlay && (
         <section class="mini-controls">

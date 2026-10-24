@@ -62,6 +62,7 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 - Tools: move/edit, line, arrow, freehand, **one angle tool (tap 3 points; angle measured at the middle point, 0–180°, shown with an arc and a degree label)**, undo, clear all (with confirm), colour (yellow, cyan, pink, white), thickness (thin, medium, thick).
 - A zoom bubble (loupe) shows under the finger while placing points.
 - Each drawing is set to **this frame only** or **whole video**.
+- Built (milestone 4): new drawings default to *this frame only*; line widths and labels stay the same size on screen at any zoom; the drawing canvas sits outside the zoom layer and maps video coordinates through the zoom (crisper than scaling it with CSS). In landscape the left rail holds Move/Line/Angle/Draw/Arrow/Undo/Colour; Clear all is in the Colour (options) panel. Move tool: drag a point or a whole drawing; tap a drawing to select it, then change its colour/thickness/scope in the panel.
 
 **Snapshots and sharing**
 - Snapshot = exactly what's on screen, **at the current zoom**, with drawings.
