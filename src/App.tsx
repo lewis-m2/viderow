@@ -2,6 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { Home } from './screens/Home';
 import { Analyse } from './screens/Analyse';
 import { probeVideo, type VideoMeta } from './video/probe';
+import type { Snapshot } from './snapshots';
+import { handleBack } from './backStack';
 
 export interface OpenVideo {
   file: File;
@@ -18,10 +20,14 @@ export class UnreadableFileError extends Error {
 
 export function App() {
   const [video, setVideo] = useState<OpenVideo | null>(null);
+  // Snapshots taken this session (kept when switching videos, gone when the app closes).
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
 
   // Android back gesture returns to Home instead of leaving the app.
   useEffect(() => {
-    const onPop = () => setVideo(null);
+    const onPop = () => {
+      if (!handleBack()) setVideo(null);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -47,5 +53,12 @@ export function App() {
   }
 
   if (!video) return <Home onOpen={open} />;
-  return <Analyse video={video} onBack={() => history.back()} />;
+  return (
+    <Analyse
+      video={video}
+      onBack={() => history.back()}
+      snapshots={snapshots}
+      setSnapshots={setSnapshots}
+    />
+  );
 }

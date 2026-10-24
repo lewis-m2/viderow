@@ -154,3 +154,25 @@ export const IconToolsShow = (p: P) => (
     <path d="M17 13l3-3-3-3" />
   </svg>
 );
+
+export const IconCamera = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+
+export const IconShare = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="6" cy="12" r="2.5" />
+    <circle cx="18" cy="6" r="2.5" />
+    <circle cx="18" cy="18" r="2.5" />
+    <path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6" />
+  </svg>
+);
+
+export const IconDownload = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </svg>
+);

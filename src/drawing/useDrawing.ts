@@ -391,6 +391,12 @@ export function useDrawing(o: Options) {
     },
   });
 
+  /** Paint the drawings on this frame for a snapshot: no handles, nothing half-drawn. */
+  function paintExport(ctx: CanvasRenderingContext2D, v: View) {
+    const s = st.current;
+    for (const d of s.drawings) if (visibleOn(d, s.frame)) renderDrawing(ctx, d, (p) => toStage(v, p));
+  }
+
   const visible = drawings.filter((d) => visibleOn(d, o.frame));
 
   return {
@@ -410,5 +416,6 @@ export function useDrawing(o: Options) {
     clearAll,
     single,
     requestRender,
+    paintExport,
   };
 }

@@ -5,6 +5,7 @@ import {
   IconAngle,
   IconArrow,
   IconBack,
+  IconCamera,
   IconDraw,
   IconLine,
   IconMove,
@@ -31,6 +32,12 @@ import { MAX_ZOOM, MIN_ZOOM, useZoom, type View } from '../useZoom';
 import { useDrawing } from '../drawing/useDrawing';
 import { DrawingPanel } from '../drawing/DrawingPanel';
 import type { Tool } from '../drawing/model';
+import { makeSnapshot, type Snapshot } from '../snapshots';
+import { SnapshotScreen } from './SnapshotScreen';
+
+/** Snapshots are rendered at the screen's pixel density, capped to keep files reasonable. */
+const SNAPSHOT_MAX_DPR = 3;
+const SNAPSHOT_QUALITY = 0.9;
 
 const SPEEDS = [
   { rate: 1, label: '1×' },
@@ -61,9 +68,11 @@ type StepMode = { kind: 'checking' } | { kind: 'fast' } | { kind: 'basic'; reaso
 interface Props {
   video: OpenVideo;
   onBack: () => void;
+  snapshots: Snapshot[];
+  setSnapshots: (update: (prev: Snapshot[]) => Snapshot[]) => void;
 }
 
-export function Analyse({ video, onBack }: Props) {
+export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -73,6 +82,7 @@ export function Analyse({ video, onBack }: Props) {
   const viewRef = useRef<() => View>(() => ({ vw: 0, vh: 0, k: 1, ox: 0, oy: 0 }));
   const [panelOpen, setPanelOpen] = useState(false);
   const [toolsHidden, setToolsHidden] = useState(false);
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -203,6 +213,7 @@ export function Analyse({ video, onBack }: Props) {
   // Keyboard (handy when developing on a computer): space plays, arrows step.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest?.('input, textarea')) return;
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') drawingRef.current.undo();
       else if (e.code === 'Space') togglePlay();
       else if (e.code === 'ArrowLeft') step(-1);
@@ -269,6 +280,55 @@ export function Analyse({ video, onBack }: Props) {
     alert(lines.join('\n\n'));
   }
 
+  /** Render exactly what's on screen (picture at the current zoom + drawings) to a JPEG. */
+  function captureView(): Promise<Blob> {
+    const stage = stageRef.current!;
+    const v = ref.current!;
+    const fc = canvasRef.current!;
+    const W = stage.clientWidth;
+    const H = stage.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, SNAPSHOT_MAX_DPR);
+    const out = document.createElement('canvas');
+    out.width = Math.round(W * dpr);
+    out.height = Math.round(H * dpr);
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const view = zoom.view();
+    if (view.vw) {
+      // Whichever is on screen: the cached frame (covers the whole picture) or the video.
+      const useFrame = fc.style.visibility === 'visible' && fc.width > 0;
+      const src: CanvasImageSource = useFrame ? fc : v;
+      const sw = useFrame ? fc.width : v.videoWidth;
+      const sh = useFrame ? fc.height : v.videoHeight;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(src, 0, 0, sw, sh, view.ox, view.oy, view.vw * view.k, view.vh * view.k);
+      drawing.paintExport(ctx, view);
+    }
+    return new Promise((resolve, reject) =>
+      out.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not make image'))), 'image/jpeg', SNAPSHOT_QUALITY),
+    );
+  }
+
+  async function takeSnapshot() {
+    const v = ref.current!;
+    if (!v.paused) v.pause();
+    try {
+      const snap = makeSnapshot(await captureView(), video.name, frameIdx);
+      setSnapshots((prev) => [...prev, snap]);
+      setSnapshotId(snap.id);
+    } catch (err) {
+      alert(`Couldn't take snapshot: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const snapshotButton = (cls = '') => (
+    <button class={`icon-button ${cls}`} onClick={takeSnapshot} aria-label="Take snapshot">
+      <IconCamera />
+    </button>
+  );
+
   const playButton = (cls: string) => (
     <button class={`play-button ${cls}`} onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
       {playing ? <IconPause /> : <IconPlay />}
@@ -304,6 +364,7 @@ export function Analyse({ video, onBack }: Props) {
           <div class="video-name">{video.name}</div>
           <div class="muted small">{fpsLabel}</div>
         </button>
+        {snapshotButton()}
       </header>
 
       <div class="stage" ref={stageRef}>
@@ -362,6 +423,7 @@ export function Analyse({ video, onBack }: Props) {
             <button class="icon-button" onClick={onBack} aria-label="Back to videos">
               <IconHome />
             </button>
+            {snapshotButton('panel-snapshot')}
             <button class="icon-button" onClick={() => setCollapsed(true)} aria-label="Hide panel">
               <IconCollapse />
             </button>
@@ -461,6 +523,25 @@ export function Analyse({ video, onBack }: Props) {
         />
       )}
 
+      {snapshotId && snapshots.length > 0 && (
+        <SnapshotScreen
+          snapshots={snapshots}
+          currentId={snapshotId}
+          onSelect={setSnapshotId}
+          onNote={(id, note) =>
+            setSnapshots((prev) => prev.map((x) => (x.id === id ? { ...x, note } : x)))
+          }
+          onDelete={(id) => {
+            const gone = snapshots.find((x) => x.id === id);
+            if (gone) URL.revokeObjectURL(gone.url);
+            const rest = snapshots.filter((x) => x.id !== id);
+            setSnapshots(() => rest);
+            setSnapshotId(rest.length ? rest[rest.length - 1].id : null);
+          }}
+          onClose={() => setSnapshotId(null)}
+        />
+      )}
+
       {showOverlay && (
         <section class="mini-controls">
           <button class="icon-button" onClick={() => setCollapsed(false)} aria-label="Show panel">
@@ -469,6 +550,7 @@ export function Analyse({ video, onBack }: Props) {
           {backButton()}
           {playButton('')}
           {forwardButton()}
+          {snapshotButton()}
           <button class="icon-button mini-home" onClick={onBack} aria-label="Back to videos">
             <IconHome />
           </button>
