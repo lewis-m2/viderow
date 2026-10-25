@@ -54,6 +54,14 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
     ],
   },
   {
+    title: 'Recording a breakdown',
+    items: [
+      'Red record button: records the video area exactly as you see it — zoom, stepping, speed changes and drawing as you do them. Buttons aren’t recorded.',
+      'Talk while you record. Voice on/off mutes your commentary at any time.',
+      'Recording stops by itself at 2:00. Then Share (WhatsApp) or Save.',
+    ],
+  },
+  {
     title: 'Landscape',
     items: [
       '» hides the right panel for a bigger video; « brings it back.',

@@ -6,6 +6,10 @@ import {
   IconArrow,
   IconBack,
   IconCamera,
+  IconMic,
+  IconMicOff,
+  IconRecord,
+  IconStop,
   IconDraw,
   IconErase,
   IconLine,
@@ -35,6 +39,8 @@ import { DrawingPanel } from '../drawing/DrawingPanel';
 import type { Tool } from '../drawing/model';
 import { makeSnapshot, type Snapshot } from '../snapshots';
 import { SnapshotScreen } from './SnapshotScreen';
+import { RecordingScreen } from './RecordingScreen';
+import { MAX_RECORD_SECONDS, Recorder, type Recording } from '../recording/recorder';
 
 /** Snapshots are rendered at the screen's pixel density, capped to keep files reasonable. */
 const SNAPSHOT_MAX_DPR = 3;
@@ -85,6 +91,12 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [toolsHidden, setToolsHidden] = useState(false);
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
+  const recorderRef = useRef<Recorder | null>(null);
+  /** Whole seconds recorded so far, or null when not recording. */
+  const [recSeconds, setRecSeconds] = useState<number | null>(null);
+  const [voice, setVoice] = useState(true);
+  const [hasMic, setHasMic] = useState(false);
+  const [recording, setRecording] = useState<Recording | null>(null);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -284,11 +296,39 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
     alert(lines.join('\n\n'));
   }
 
-  /** Render exactly what's on screen (picture at the current zoom + drawings) to a JPEG. */
-  function captureView(): Promise<Blob> {
+  /**
+   * Paint the stage as seen (picture at the current zoom + drawings) into ctx, in stage CSS px.
+   * `live` copies the drawing layer as-is (includes a stroke being drawn, for recordings);
+   * otherwise drawings are redrawn cleanly (for snapshots).
+   */
+  function paintStage(ctx: CanvasRenderingContext2D, live: boolean) {
     const stage = stageRef.current!;
     const v = ref.current!;
     const fc = canvasRef.current!;
+    const view = zoom.view();
+    if (!view.vw) return;
+    // Whichever is on screen: the cached frame (covers the whole picture) or the video.
+    const useFrame = fc.style.visibility === 'visible' && fc.width > 0;
+    const src: CanvasImageSource = useFrame ? fc : v;
+    const sw = useFrame ? fc.width : v.videoWidth;
+    const sh = useFrame ? fc.height : v.videoHeight;
+    ctx.imageSmoothingQuality = 'high';
+    try {
+      ctx.drawImage(src, 0, 0, sw, sh, view.ox, view.oy, view.vw * view.k, view.vh * view.k);
+    } catch {
+      /* video not ready */
+    }
+    if (live) {
+      const dc = drawCanvasRef.current!;
+      if (dc.width) ctx.drawImage(dc, 0, 0, stage.clientWidth, stage.clientHeight);
+    } else {
+      drawing.paintExport(ctx, view);
+    }
+  }
+
+  /** Render exactly what's on screen (picture at the current zoom + drawings) to a JPEG. */
+  function captureView(): Promise<Blob> {
+    const stage = stageRef.current!;
     const W = stage.clientWidth;
     const H = stage.clientHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, SNAPSHOT_MAX_DPR);
@@ -299,17 +339,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const view = zoom.view();
-    if (view.vw) {
-      // Whichever is on screen: the cached frame (covers the whole picture) or the video.
-      const useFrame = fc.style.visibility === 'visible' && fc.width > 0;
-      const src: CanvasImageSource = useFrame ? fc : v;
-      const sw = useFrame ? fc.width : v.videoWidth;
-      const sh = useFrame ? fc.height : v.videoHeight;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(src, 0, 0, sw, sh, view.ox, view.oy, view.vw * view.k, view.vh * view.k);
-      drawing.paintExport(ctx, view);
-    }
+    paintStage(ctx, false);
     return new Promise((resolve, reject) =>
       out.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not make image'))), 'image/jpeg', SNAPSHOT_QUALITY),
     );
@@ -326,6 +356,65 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
       alert(`Couldn't take snapshot: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
+  async function startRecording() {
+    if (recorderRef.current) return;
+    const rec = new Recorder({
+      getSize: () => {
+        const st = stageRef.current;
+        return { W: st?.clientWidth ?? 0, H: st?.clientHeight ?? 0 };
+      },
+      paint: (ctx) => paintStage(ctx, true),
+      voice,
+      baseName: video.name.replace(/[^\w-]+/g, '_').slice(0, 40) || 'video',
+      onTick: (secs) => {
+        const whole = Math.floor(secs);
+        setRecSeconds((prev) => (prev === whole ? prev : whole));
+      },
+      onDone: (result) => {
+        recorderRef.current = null;
+        setRecSeconds(null);
+        setRecording(result);
+      },
+      onError: (msg) => alert(`Recording problem: ${msg}`),
+    });
+    recorderRef.current = rec;
+    setRecSeconds(0);
+    try {
+      await rec.start();
+      setHasMic(rec.hasMic);
+      rec.setVoice(voice);
+    } catch (err) {
+      recorderRef.current = null;
+      setRecSeconds(null);
+      alert(`Couldn't start recording: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+  }
+
+  function toggleVoice() {
+    const next = !voice;
+    setVoice(next);
+    recorderRef.current?.setVoice(next);
+  }
+
+  // Leaving the video mid-recording throws the recording away.
+  useEffect(() => () => recorderRef.current?.discard(), []);
+
+  const isRecording = recSeconds !== null;
+  const recordButton = (cls = '') => (
+    <button
+      class={`icon-button record-button ${isRecording ? 'is-recording' : ''} ${cls}`}
+      onClick={isRecording ? stopRecording : startRecording}
+      aria-label={isRecording ? 'Stop recording' : 'Record'}
+    >
+      {isRecording ? <IconStop /> : <IconRecord />}
+    </button>
+  );
+  const fmtSecs = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 
   const snapshotButton = (cls = '') => (
     <button class={`icon-button ${cls}`} onClick={takeSnapshot} aria-label="Take snapshot">
@@ -369,9 +458,10 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
           <div class="muted small">{fpsLabel}</div>
         </button>
         {snapshotButton()}
+        {recordButton()}
       </header>
 
-      <div class="stage" ref={stageRef}>
+      <div class={`stage ${isRecording ? 'is-recording' : ''}`} ref={stageRef}>
         {/* One transform moves the video and the cached frame together. */}
         <div class="zoom-layer" ref={layerRef}>
           <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture />
@@ -380,6 +470,28 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
         {/* Drawings sit outside the zoom layer so lines stay crisp; they're mapped through the zoom. */}
         <canvas ref={drawCanvasRef} class="draw-canvas" />
         <canvas ref={loupeRef} class="loupe" />
+        {isRecording && (
+          // On top of the video but not part of the recording.
+          <div class="rec-bar">
+            <span class="rec-pill">
+              <span class="rec-dot" />
+              REC {fmtSecs(recSeconds)} / {fmtSecs(MAX_RECORD_SECONDS)}
+            </span>
+            <button
+              class={`rec-voice ${voice && hasMic ? 'is-on' : ''}`}
+              onClick={toggleVoice}
+              disabled={!hasMic}
+              aria-label={voice && hasMic ? 'Voice on (tap to mute)' : 'Voice off'}
+            >
+              {voice && hasMic ? <IconMic /> : <IconMicOff />}
+              <span>{!hasMic ? 'No mic' : voice ? 'Voice on' : 'Voice off'}</span>
+            </button>
+            <button class="rec-stop" onClick={stopRecording} aria-label="Stop recording">
+              <IconStop />
+              <span>Stop</span>
+            </button>
+          </div>
+        )}
         {landscape && toolsHidden && (
           <button class="tools-tab" onClick={() => setToolsHidden(false)} aria-label="Show drawing tools">
             <IconToolsShow />
@@ -428,6 +540,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
               <IconHome />
             </button>
             {snapshotButton('panel-snapshot')}
+            {recordButton('panel-snapshot')}
             <button class="icon-button" onClick={() => setCollapsed(true)} aria-label="Hide panel">
               <IconCollapse />
             </button>
@@ -546,6 +659,16 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
         />
       )}
 
+      {recording && (
+        <RecordingScreen
+          recording={recording}
+          onClose={() => {
+            URL.revokeObjectURL(recording.url);
+            setRecording(null);
+          }}
+        />
+      )}
+
       {showOverlay && (
         <section class="mini-controls">
           <button class="icon-button" onClick={() => setCollapsed(false)} aria-label="Show panel">
@@ -555,6 +678,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
           {playButton('')}
           {forwardButton()}
           {snapshotButton()}
+          {recordButton()}
           <button class="icon-button mini-home" onClick={onBack} aria-label="Back to videos">
             <IconHome />
           </button>

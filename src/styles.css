@@ -1076,3 +1076,92 @@ button {
   margin: 6px 0;
   line-height: 1.4;
 }
+
+/* ---------- Recording ---------- */
+.record-button {
+  color: var(--record);
+}
+
+.record-button.is-recording {
+  background: var(--record);
+  color: #fff;
+}
+
+/* Red outline round the recorded area (drawn inside so it isn't cut off). */
+.stage.is-recording::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--record);
+  pointer-events: none;
+}
+
+.rec-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--record);
+  color: #fff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: rec-blink 1s steps(2, start) infinite;
+}
+
+@keyframes rec-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.rec-voice,
+.rec-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 22px;
+  background: rgba(14, 17, 22, 0.8);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rec-voice.is-on {
+  color: var(--accent);
+}
+
+.rec-voice:disabled {
+  opacity: 0.6;
+}
+
+.rec-stop {
+  color: var(--record);
+}
+
+.mini-controls .icon-button,
+.mini-controls .frame-button {
+  min-height: 44px;
+  height: 44px;
+}

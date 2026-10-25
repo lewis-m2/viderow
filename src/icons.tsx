@@ -199,3 +199,30 @@ export const IconErase = (p: P) => (
     <path d="M9.5 10.5l6 6" />
   </svg>
 );
+
+export const IconRecord = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="4.5" fill="currentColor" />
+  </svg>
+);
+
+export const IconStop = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" />
+  </svg>
+);
+
+export const IconMic = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+  </svg>
+);
+
+export const IconMicOff = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M4 4l16 16" />
+  </svg>
+);
