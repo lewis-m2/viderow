@@ -276,7 +276,6 @@ export function Analyse({ video, onBack, snapshots, setSnapshots, onCompare }: P
             <button class="icon-button" onClick={onBack} aria-label="Back to videos">
               <IconHome />
             </button>
-            {soundButton('panel-snapshot')}
             {compareButton('panel-snapshot')}
             {snapshotButton('panel-snapshot')}
             {recordButton('panel-snapshot')}
@@ -320,6 +319,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots, onCompare }: P
           >
             <IconPlus />
           </button>
+          {landscape && soundButton('zoom-button')}
         </div>
       </section>
 

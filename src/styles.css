@@ -1335,3 +1335,243 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------- Compare ---------- */
+.compare {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cmp-title {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+}
+
+.cmp-panes {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cmp-panes.is-recording::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--record);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cmp-pane {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cmp-pane .stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.cmp-label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: 13px;
+  background: rgba(14, 17, 22, 0.75);
+  font-weight: 700;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.cmp-time {
+  margin-left: 6px;
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-pane.is-active .stage {
+  box-shadow: inset 0 0 0 2px rgba(242, 244, 247, 0.25);
+}
+
+.cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+}
+
+.cmp-row .scrub-strip {
+  flex: 1;
+  height: 44px;
+}
+
+.cmp-row .frame-button {
+  width: 52px;
+  height: 44px;
+}
+
+.cmp-hint {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.cmp-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.cmp-linked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cmp-linked-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cmp-linked .scrub-strip {
+  height: 44px;
+}
+
+.cmp-play-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmp-play-row .play-button {
+  width: 56px;
+  height: 56px;
+  flex: none;
+}
+
+.cmp-play-row .frame-button {
+  width: 52px;
+  flex: none;
+}
+
+.cmp-speeds {
+  flex: 1;
+  gap: 4px;
+}
+
+.cmp-speeds .speed {
+  font-size: 15px;
+  min-width: 0;
+}
+
+.cmp-bottom {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 8px 8px;
+  min-height: 48px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.cmp-tools {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+/* Landscape: A and B side by side; controls in one bar along the bottom. */
+.cmp-land .cmp-top {
+  display: none;
+}
+
+.cmp-land .cmp-panes {
+  flex-direction: row;
+}
+
+.cmp-land .cmp-hint {
+  display: none;
+}
+
+.cmp-land .cmp-linked {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.cmp-land .cmp-linked-label {
+  display: none;
+}
+
+.cmp-land .cmp-linked .scrub-strip {
+  flex: 1;
+}
+
+.cmp-land .cmp-speeds {
+  flex: none;
+  width: 200px;
+}
+
+.cmp-land .cmp-bottom {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+}
+
+.cmp-bottom-head {
+  display: flex;
+}
+
+.cmp-land .cmp-tools {
+  flex: 1;
+  display: flex;
+  padding: 0;
+  background: transparent;
+}
+
+.cmp-land .cmp-tools .tool {
+  flex: 1;
+  min-height: 44px;
+}
+
+.cmp-land .cmp-tools .tool-label {
+  display: none;
+}
+
+.cmp-land .link-button {
+  margin: 0;
+  padding: 0 16px;
+  min-height: 44px;
+}
+
+.is-landscape .zoom-row .zoom-button {
+  width: 48px;
+}

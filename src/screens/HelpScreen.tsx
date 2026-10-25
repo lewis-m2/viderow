@@ -73,6 +73,16 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
     ],
   },
   {
+    title: 'Compare two videos',
+    items: [
+      'Compare button (two stacked boxes) on the video screen, then pick video B: ★ references first, then recent videos, or Files. You can pick the same video to compare two strokes.',
+      'Each video has its own ⏮ / strip / ⏭. Slide each to the same moment — catch to catch, finish to finish.',
+      'Then tap Link: one strip, play and speed move both (matched by time). If they drift apart over a long clip, Unlink, line them up again and Link.',
+      'Zoom and draw on each video separately; Undo works across both. Swap A/B with the arrows button.',
+      'Snapshot and record capture both videos, with A/B labels. Turn the phone sideways for side by side.',
+    ],
+  },
+  {
     title: 'Landscape',
     items: [
       '» hides the right panel for a bigger video; « brings it back.',

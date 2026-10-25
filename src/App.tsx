@@ -3,7 +3,9 @@ import { Home } from './screens/Home';
 import { Analyse } from './screens/Analyse';
 import { probeVideo, type VideoMeta } from './video/probe';
 import type { Snapshot } from './snapshots';
-import { handleBack } from './backStack';
+import { adoptBack, handleBack } from './backStack';
+import { CompareScreen } from './screens/CompareScreen';
+import { PickVideo } from './screens/PickVideo';
 import type { Drawing } from './drawing/model';
 import {
   loadDrawings,
@@ -23,6 +25,8 @@ export interface OpenVideo {
   meta: VideoMeta;
   /** Drawings saved for this video last time. */
   drawings: Drawing[];
+  /** Starred as a reference in the recent list. */
+  starred?: boolean;
 }
 
 const SHARE_CACHE = 'shared-video';
@@ -40,6 +44,9 @@ export function App() {
   const [shareError, setShareError] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Choosing video B for Compare (A's current drawings kept here meanwhile). */
+  const [picking, setPicking] = useState<Drawing[] | null>(null);
+  const [compare, setCompare] = useState<{ a: OpenVideo; b: OpenVideo } | null>(null);
 
   useEffect(() => {
     if (!notice) return;
@@ -85,12 +92,15 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // Free the video's memory when a different video is opened (not when its details change).
   useEffect(() => {
     if (!video) return;
-    return () => URL.revokeObjectURL(video.url);
-  }, [video]);
+    const url = video.url;
+    return () => URL.revokeObjectURL(url);
+  }, [video?.url]);
 
-  async function open(file: File, recent?: RecentVideo) {
+  /** Check a file can be read, read its frame info and saved drawings. Keeps a copy if new. */
+  async function prepareVideo(file: File, recent?: RecentVideo): Promise<OpenVideo> {
     // Android's photo picker sometimes hands over a file Chrome isn't allowed to read
     // (e.g. a cloud-only video). Catch that here rather than showing a broken screen.
     try {
@@ -103,8 +113,7 @@ export function App() {
     const name = recent?.name ?? file.name.replace(/\.[^.]+$/, '');
     const id = recent?.id ?? videoIdFor(file);
     const drawings = await loadDrawings(id).catch(() => []);
-    setVideo({ id, file, url: URL.createObjectURL(file), name, meta, drawings });
-    history.pushState({ screen: 'analyse' }, '');
+    const prepared: OpenVideo = { id, file, url: URL.createObjectURL(file), name, meta, drawings, starred: recent?.starred };
     if (recent) {
       touchRecent(id).catch(() => {});
     } else {
@@ -117,13 +126,48 @@ export function App() {
         );
       });
     }
+    return prepared;
+  }
+
+  async function open(file: File, recent?: RecentVideo) {
+    setVideo(await prepareVideo(file, recent));
+    history.pushState({ screen: 'analyse' }, '');
+  }
+
+  async function fileForRecent(recent: RecentVideo): Promise<File> {
+    const file = await loadVideoFile(recent);
+    if (!file) throw new Error('The saved copy of this video is missing. Open it again from Files.');
+    return file;
   }
 
   async function openRecent(recent: RecentVideo) {
-    const file = await loadVideoFile(recent);
-    if (!file) throw new Error('The saved copy of this video is missing. Open it again from Files.');
-    await open(file, recent);
+    await open(await fileForRecent(recent), recent);
   }
+
+  // ---------- Compare ----------
+
+  function startPicking(aDrawings: Drawing[]) {
+    setPicking(aDrawings);
+  }
+
+  async function pickB(file: File, recent?: RecentVideo) {
+    if (!video || !picking) return;
+    const b = await prepareVideo(file, recent);
+    const a = { ...video, drawings: picking };
+    setPicking(null);
+    setCompare({ a, b });
+  }
+
+  // Leaving Compare (back gesture or button): back to video A with its latest drawings.
+  useEffect(() => {
+    if (!compare) return;
+    return adoptBack(async () => {
+      URL.revokeObjectURL(compare.b.url);
+      const drawings = await loadDrawings(compare.a.id).catch(() => compare.a.drawings);
+      setVideo((v) => (v ? { ...v, drawings } : v));
+      setCompare(null);
+    });
+  }, [compare]);
 
   const toast = notice && (
     <div class="toast" role="status" onClick={() => setNotice(null)}>
@@ -138,6 +182,20 @@ export function App() {
       </>
     );
   }
+  if (compare) {
+    return (
+      <>
+        <CompareScreen
+          a={compare.a}
+          b={compare.b}
+          onBack={() => history.back()}
+          snapshots={snapshots}
+          setSnapshots={setSnapshots}
+        />
+        {toast}
+      </>
+    );
+  }
   return (
     <>
       <Analyse
@@ -146,8 +204,16 @@ export function App() {
         onBack={() => history.back()}
         snapshots={snapshots}
         setSnapshots={setSnapshots}
-        onCompare={() => {}}
+        onCompare={startPicking}
       />
+      {picking && (
+        <PickVideo
+          current={video}
+          onPickFile={(f) => pickB(f)}
+          onPickRecent={async (r) => pickB(await fileForRecent(r), r)}
+          onClose={() => setPicking(null)}
+        />
+      )}
       {toast}
     </>
   );

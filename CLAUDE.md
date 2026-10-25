@@ -92,6 +92,7 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 - Snapshot in compare = one image containing both videos as shown (stacked A over B, side by side, or the overlay), drawings and zoom included. Recording in compare = the same area as a clip, with optional voice.
 - Memory: two videos means two frame caches — halve the cache window for each.
 - When linked, both play at the same speed.
+- Built (milestone 8): `src/video/pane.tsx` (`useVideoPane` + `<PaneStage>`) holds one video's picture, frame cache, zoom, drawings and saving; Analyse uses one, Compare two (each with half the cache). Drawing settings are shared (`useDrawingSettings`); Undo in Compare uses a cross-video stack. Linked playback plays both `<video>`s and corrects B if it drifts > 0.1 s. B picked from ★ references, recent list or Files; the same video can be A and B (then B's drawings aren't saved). Landscape analyse panel: sound button moved into the zoom row to make room for Compare.
 
 **Recent videos**
 - Home screen: big "Open video" button (from gallery) and a list of recent videos, each with its drawings saved on the phone (a stored copy of the video + drawing data in IndexedDB). Allow deleting old ones to free space.

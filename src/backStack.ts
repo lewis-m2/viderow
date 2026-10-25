@@ -22,3 +22,15 @@ export function handleBack(): boolean {
   close();
   return true;
 }
+
+/**
+ * Register a closer for a screen that takes over the history entry of the overlay that opened
+ * it (e.g. Compare replacing the "pick video B" list), so no extra back press is needed.
+ */
+export function adoptBack(close: () => void): () => void {
+  closers.push(close);
+  return () => {
+    const i = closers.lastIndexOf(close);
+    if (i >= 0) closers.splice(i, 1);
+  };
+}
