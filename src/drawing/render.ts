@@ -43,7 +43,10 @@ function label(ctx: CanvasRenderingContext2D, text: string, at: Pt, colour: stri
   ctx.fillText(text, at.x, at.y + 1);
 }
 
-export function renderDrawing(ctx: CanvasRenderingContext2D, d: Drawing, map: Map, selected = false) {
+/** 'subtle' = small rings showing grabbable points; 'strong' = the selected drawing. */
+export type HandleStyle = 'none' | 'subtle' | 'strong';
+
+export function renderDrawing(ctx: CanvasRenderingContext2D, d: Drawing, map: Map, handleStyle: HandleStyle = 'none') {
   const w = THICKNESS_PX[d.thickness];
   const c = d.colour;
   switch (d.kind) {
@@ -102,17 +105,18 @@ export function renderDrawing(ctx: CanvasRenderingContext2D, d: Drawing, map: Ma
       renderAngle(ctx, [map(d.a), map(d.b), map(d.c)], c, w, Math.round(angleDeg(d.a, d.b, d.c)));
       break;
   }
-  if (selected) {
+  if (handleStyle !== 'none') {
+    const strong = handleStyle === 'strong';
     for (const h of handles(d).map(map)) {
       ctx.beginPath();
-      ctx.arc(h.x, h.y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(14, 17, 22, 0.5)';
+      ctx.arc(h.x, h.y, strong ? 10 : 8, 0, Math.PI * 2);
+      ctx.fillStyle = strong ? 'rgba(14, 17, 22, 0.5)' : 'rgba(14, 17, 22, 0.25)';
       ctx.fill();
-      ctx.strokeStyle = '#F2F4F7';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = strong ? '#F2F4F7' : 'rgba(242, 244, 247, 0.75)';
+      ctx.lineWidth = strong ? 2 : 1.5;
       ctx.stroke();
     }
-    if (d.kind === 'free' && d.pts.length) {
+    if (strong && d.kind === 'free' && d.pts.length) {
       // No handles on freehand: outline its bounds instead so it's clear what's selected.
       const pts = d.pts.map(map);
       const xs = pts.map((p) => p.x);

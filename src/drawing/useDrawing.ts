@@ -4,11 +4,8 @@ import { toStage, toVideo, type SingleFingerHandler, type View } from '../useZoo
 import {
   COLOURS,
   THICKNESS_PX,
-  distToSegment,
   handles,
   newId,
-  segments,
-  translated,
   visibleOn,
   withHandle,
   type Drawing,
@@ -22,9 +19,8 @@ import { renderAngle, renderDrawing } from './render';
 const LOUPE_SIZE = 120;
 const LOUPE_MAG = 2;
 const LOUPE_OFFSET = 110;
-/** How close (screen px) a finger must be to grab a point or a line in Move mode. */
+/** How close (screen px) a finger must be to grab a drawing's point with a drawing tool. */
 const HANDLE_HIT_PX = 26;
-const LINE_HIT_PX = 18;
 const MIN_LINE_PX = 8;
 const MAX_UNDO = 100;
 
@@ -41,9 +37,7 @@ interface Options {
   onDrawStart: () => void;
 }
 
-type Drag =
-  | { kind: 'handle'; id: string; index: number; original: Drawing }
-  | { kind: 'whole'; id: string; from: Pt; original: Drawing };
+type Drag = { id: string; index: number; original: Drawing };
 
 export function useDrawing(o: Options) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -104,12 +98,10 @@ export function useDrawing(o: Options) {
     anglePts.current = [];
     anglePending.current = null;
     draft.current = null;
-    if (t !== 'move') setSelectedId(null);
     setToolState(t);
   }
 
   function select(id: string) {
-    setToolState('move');
     setSelectedId(id);
   }
 
@@ -155,7 +147,11 @@ export function useDrawing(o: Options) {
 
   function paint(ctx: CanvasRenderingContext2D, map: (p: Pt) => Pt) {
     const s = st.current;
-    for (const d of shown()) renderDrawing(ctx, d, map, d.id === s.selectedId && s.tool === 'move');
+    // With a drawing tool on, show the points that can be dragged.
+    for (const d of shown()) {
+      const style = d.id === s.selectedId ? 'strong' : s.tool !== 'move' ? 'subtle' : 'none';
+      renderDrawing(ctx, d, map, style);
+    }
     const pts = [...anglePts.current];
     if (anglePending.current) pts.push(anglePending.current);
     if (pts.length) renderAngle(ctx, pts.map(map), s.colour, THICKNESS_PX[s.thickness]);
@@ -261,23 +257,17 @@ export function useDrawing(o: Options) {
 
   // ---------- one-finger gestures ----------
 
-  function hitTest(sp: Pt, v: View): Drag | null {
+  /** A drawing's point under the finger (selected drawing first, then topmost). */
+  function hitHandle(sp: Pt, v: View): Drag | null {
     const s = st.current;
     const list = s.drawings.filter((d) => visibleOn(d, s.frame));
-    // Selected drawing's points first, then any point, then any line (topmost first).
     const ordered = [...list].reverse().sort((a, b) => Number(b.id === s.selectedId) - Number(a.id === s.selectedId));
     for (const d of ordered) {
       const hs = handles(d);
       for (let i = 0; i < hs.length; i++) {
         const h = toStage(v, hs[i]);
-        if (Math.hypot(h.x - sp.x, h.y - sp.y) <= HANDLE_HIT_PX) return { kind: 'handle', id: d.id, index: i, original: d };
+        if (Math.hypot(h.x - sp.x, h.y - sp.y) <= HANDLE_HIT_PX) return { id: d.id, index: i, original: d };
       }
-    }
-    for (const d of ordered) {
-      const near = segments(d).some(
-        ([a, b]) => distToSegment(sp, toStage(v, a), toStage(v, b)) <= LINE_HIT_PX + THICKNESS_PX[d.thickness] / 2,
-      );
-      if (near) return { kind: 'whole', id: d.id, from: toVideo(v, sp), original: d };
     }
     return null;
   }
@@ -288,20 +278,21 @@ export function useDrawing(o: Options) {
       if (!v.vw) return false;
       const p = toVideo(v, sp);
       const s = st.current;
+      // Pan mode: one finger pans / taps (handled by the zoom code). Drawings can't be grabbed.
+      if (s.tool === 'move') return false;
+      // With a drawing tool, pressing on an existing point drags it (unless mid-way through an angle).
+      const hit = anglePts.current.length ? null : hitHandle(sp, v);
+      if (hit) {
+        opts.current.onDrawStart();
+        setSelectedId(hit.id);
+        st.current.selectedId = hit.id;
+        drag.current = hit;
+        edit.current = hit.original;
+        loupeAt.current = handles(hit.original)[hit.index];
+        requestRender();
+        return true;
+      }
       switch (s.tool) {
-        case 'move': {
-          const hit = hitTest(sp, v);
-          if (!hit) {
-            setSelectedId(null);
-            return false; // let it be a tap (double-tap still resets zoom)
-          }
-          setSelectedId(hit.id);
-          st.current.selectedId = hit.id;
-          drag.current = hit;
-          edit.current = hit.original;
-          if (hit.kind === 'handle') loupeAt.current = handles(hit.original)[hit.index];
-          break;
-        }
         case 'line':
         case 'arrow':
           opts.current.onDrawStart();
@@ -328,12 +319,8 @@ export function useDrawing(o: Options) {
       const d = draft.current;
       if (drag.current) {
         const g = drag.current;
-        if (g.kind === 'handle') {
-          edit.current = withHandle(g.original, g.index, p);
-          loupeAt.current = p;
-        } else {
-          edit.current = translated(g.original, p.x - g.from.x, p.y - g.from.y);
-        }
+        edit.current = withHandle(g.original, g.index, p);
+        loupeAt.current = p;
       } else if (d && (d.kind === 'line' || d.kind === 'arrow')) {
         draft.current = { ...d, b: p };
         loupeAt.current = p;

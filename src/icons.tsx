@@ -176,3 +176,18 @@ export const IconDownload = (p: P) => (
     <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
   </svg>
 );
+
+/** Pan: an open hand */
+export const IconPan = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4a1.5 1.5 0 0 1 3 0v6.5M14 10.5V5.5a1.5 1.5 0 0 1 3 0V12M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.6 15.6a1.6 1.6 0 0 1 2.3-2.2L8 14.5" />
+  </svg>
+);
+
+export const IconHelp = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.3 2-2.3 3.5" />
+    <circle cx="12" cy="17.2" r="0.6" fill="currentColor" />
+  </svg>
+);

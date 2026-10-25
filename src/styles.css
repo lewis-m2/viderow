@@ -1039,3 +1039,40 @@ button {
     width: 360px;
   }
 }
+
+/* ---------- Help ---------- */
+.help-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.help-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 24px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.help-body h3 {
+  margin: 18px 0 6px;
+  font-size: 17px;
+  color: var(--accent);
+}
+
+.help-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.help-body li {
+  margin: 6px 0;
+  line-height: 1.4;
+}

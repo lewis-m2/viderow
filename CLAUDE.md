@@ -57,6 +57,8 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 - **No** reset button, **no** mini-map.
 - Zoom **stays locked** while playing and stepping.
 - One finger never zooms; two fingers never draw.
+- **Pan mode** (the default tool, was "Move"): one finger pans the zoomed picture; drawings can't be grabbed. **Drawing tools**: one finger draws; pressing on an existing drawing's point (shown as small rings) drags that point. Two fingers pinch/pan in every mode. (Agreed 2026-10-25.)
+- Home has a **How to use** button with a short controls guide (keep it up to date when controls change).
 
 **Drawing**
 - Tools: move/edit, line, arrow, freehand, **one angle tool (tap 3 points; angle measured at the middle point, 0–180°, shown with an arc and a degree label)**, undo, clear all (with confirm), colour (yellow, cyan, pink, white), thickness (thin, medium, thick).

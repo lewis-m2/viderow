@@ -1,5 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
-import { IconGallery, IconVideo } from '../icons';
+import { IconGallery, IconHelp, IconVideo } from '../icons';
+import { HelpScreen } from './HelpScreen';
 import { UnreadableFileError } from '../App';
 
 interface Props {
@@ -11,6 +12,7 @@ export function Home({ onOpen }: Props) {
   const filesInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   async function handleFile(e: Event) {
     const file = (e.currentTarget as HTMLInputElement).files?.[0];
@@ -58,6 +60,12 @@ export function Home({ onOpen }: Props) {
       <input ref={galleryInput} type="file" accept="video/*" hidden onChange={handleFile} />
 
       {error && <p class="error">{error}</p>}
+
+      <button class="browse-files" onClick={() => setHelpOpen(true)}>
+        <IconHelp />
+        <span>How to use</span>
+      </button>
+      {helpOpen && <HelpScreen onClose={() => setHelpOpen(false)} />}
 
       <footer class="home-footer muted">
         Videos stay on your phone. Nothing is uploaded.

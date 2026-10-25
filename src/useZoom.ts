@@ -66,15 +66,19 @@ interface Options {
   /** Called after every change of zoom/pan or stage size. */
   onChange?: () => void;
   single?: RefObject<SingleFingerHandler | null>;
+  /** When true, a one-finger drag (not claimed by `single`) pans the picture. */
+  oneFingerPan?: () => boolean;
 }
 
-export function useZoom({ stage, layer, video, onTap, onChange, single }: Options) {
+export function useZoom({ stage, layer, video, onTap, onChange, single, oneFingerPan }: Options) {
   const [scale, setScale] = useState(1);
   const zoom = useRef<Zoom>({ s: 1, fx: 0.5, fy: 0.5 });
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const oneFingerPanRef = useRef(oneFingerPan);
+  oneFingerPanRef.current = oneFingerPan;
 
   /** Where the video picture sits inside the stage at 1× (object-fit: contain). */
   function contentRect(): Rect {
@@ -159,6 +163,7 @@ export function useZoom({ stage, layer, video, onTap, onChange, single }: Option
     let pinch: { d0: number; mx: number; my: number; s0: number; tx0: number; ty0: number } | null = null;
     let usedTwoFingers = false;
     let claimed = false;
+    let pan: { x: number; y: number; tx0: number; ty0: number; active: boolean } | null = null;
     let tap: { x: number; y: number; t: number } | null = null;
     let lastTap: { x: number; y: number; t: number } | null = null;
 
@@ -185,7 +190,13 @@ export function useZoom({ stage, layer, video, onTap, onChange, single }: Option
         usedTwoFingers = false;
         claimed = single?.current?.start(p) ?? false;
         tap = claimed ? null : { ...p, t: e.timeStamp };
+        pan = null;
+        if (!claimed && oneFingerPanRef.current?.()) {
+          const { tx, ty } = toTranslate(zoom.current, contentRect());
+          pan = { x: p.x, y: p.y, tx0: tx, ty0: ty, active: false };
+        }
       } else if (pts.size === 2) {
+        pan = null;
         // Two fingers never draw: hand back anything the first finger started.
         if (claimed) single?.current?.cancel();
         claimed = false;
@@ -204,6 +215,15 @@ export function useZoom({ stage, layer, video, onTap, onChange, single }: Option
         return;
       }
       if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > TAP_SLOP_PX) tap = null;
+      if (pan && pts.size === 1 && !usedTwoFingers) {
+        // Starts once the finger has moved past the tap distance, so taps still work.
+        if (!pan.active && Math.hypot(p.x - pan.x, p.y - pan.y) > TAP_SLOP_PX) pan.active = true;
+        if (pan.active) {
+          zoom.current = fromTranslate(zoom.current.s, pan.tx0 + p.x - pan.x, pan.ty0 + p.y - pan.y, contentRect());
+          apply();
+        }
+        return;
+      }
       if (pinch && pts.size >= 2) {
         const { d, mx, my } = twoPoints();
         const s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinch.s0 * (d / pinch.d0)));

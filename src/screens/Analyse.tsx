@@ -8,7 +8,7 @@ import {
   IconCamera,
   IconDraw,
   IconLine,
-  IconMove,
+  IconPan,
   IconTrash,
   IconUndo,
   IconCollapse,
@@ -56,7 +56,7 @@ const STRIP_PX_PER_FRAME = 14;
 const ZOOM_STEP = 1.5;
 
 const TOOLS: Array<{ tool: Tool; label: string; icon: () => preact.JSX.Element }> = [
-  { tool: 'move', label: 'Move', icon: () => <IconMove /> },
+  { tool: 'move', label: 'Pan', icon: () => <IconPan /> },
   { tool: 'line', label: 'Line', icon: () => <IconLine /> },
   { tool: 'angle', label: 'Angle', icon: () => <IconAngle /> },
   { tool: 'free', label: 'Draw', icon: () => <IconDraw /> },
@@ -123,6 +123,8 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
       if (st) stepperRef.current?.viewChanged(viewRef.current(), st.clientWidth, st.clientHeight);
     },
     single: drawing.single,
+    // Pan mode: one finger moves the picture. Drawing tools: one finger draws.
+    oneFingerPan: () => drawingRef.current?.tool === 'move',
   });
   viewRef.current = zoom.view;
   const drawingRef = useRef(drawing);
