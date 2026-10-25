@@ -285,15 +285,17 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   }
 
   // Slim scrub bar over the video (landscape collapsed) fades when unused.
+  // While recording it stays up, so you can scrub through the stroke as you talk.
   function showScrub() {
     setScrubVisible(true);
     clearTimeout(fadeTimer.current);
+    if (recSeconds !== null) return;
     fadeTimer.current = window.setTimeout(() => setScrubVisible(false), SCRUB_FADE_MS);
   }
   useEffect(() => {
     if (landscape && collapsed) showScrub();
     return () => clearTimeout(fadeTimer.current);
-  }, [landscape, collapsed]);
+  }, [landscape, collapsed, recSeconds === null]);
 
   const frameLabel = `Frame ${formatCount(frameIdx + 1)} / ${formatCount(total)} · ${formatTime(time)}`;
   const stepLabel =
