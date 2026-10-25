@@ -43,6 +43,13 @@ import { makeSnapshot, type Snapshot } from '../snapshots';
 import { SnapshotScreen } from './SnapshotScreen';
 import { RecordingScreen } from './RecordingScreen';
 import { MAX_RECORD_SECONDS, Recorder, type Recording } from '../recording/recorder';
+import { saveDrawings, updateRecent } from '../library';
+
+/** Thumbnail for the recent list (stored with the video). */
+const THUMB_W = 192;
+const THUMB_H = 108;
+const SAVE_DRAWINGS_DELAY_MS = 400;
+const THUMB_DELAY_MS = 1000;
 
 /** Snapshots are rendered at the screen's pixel density, capped to keep files reasonable. */
 const SNAPSHOT_MAX_DPR = 3;
@@ -147,7 +154,26 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
     onDrawStart: () => {
       if (!ref.current!.paused) ref.current!.pause();
     },
+    initial: video.drawings,
   });
+
+  // Save drawings to the phone shortly after each change (and when leaving).
+  const savedDrawings = useRef(video.drawings);
+  useEffect(() => {
+    if (drawing.drawings === savedDrawings.current) return;
+    const list = drawing.drawings;
+    const t = setTimeout(() => {
+      savedDrawings.current = list;
+      saveDrawings(video.id, list).catch((err) => console.warn('Could not save drawings', err));
+    }, SAVE_DRAWINGS_DELAY_MS);
+    return () => {
+      clearTimeout(t);
+      if (savedDrawings.current !== list) {
+        savedDrawings.current = list;
+        saveDrawings(video.id, list).catch(() => {});
+      }
+    };
+  }, [drawing.drawings]);
   const zoom = useZoom({
     stage: stageRef,
     layer: layerRef,
@@ -247,6 +273,37 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   useEffect(() => {
     ref.current!.playbackRate = rate;
   }, [rate, duration]);
+
+  // Length and frame rate for the recent list.
+  useEffect(() => {
+    if (duration > 0) updateRecent(video.id, { duration, fps: meta.fps }).catch(() => {});
+  }, [duration]);
+
+  /** Small picture of what's on screen (with drawings) for the recent list. */
+  function saveThumbnail() {
+    const stage = stageRef.current;
+    if (!stage || !zoom.view().vw) return;
+    const c = document.createElement('canvas');
+    c.width = THUMB_W;
+    c.height = THUMB_H;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+    // Cover the thumbnail with the middle of the stage.
+    const f = Math.max(THUMB_W / stage.clientWidth, THUMB_H / stage.clientHeight);
+    ctx.setTransform(f, 0, 0, f, (THUMB_W - stage.clientWidth * f) / 2, (THUMB_H - stage.clientHeight * f) / 2);
+    paintStage(ctx, false);
+    c.toBlob((b) => b && updateRecent(video.id, { thumb: b }).catch(() => {}), 'image/jpeg', 0.75);
+  }
+
+  // Keep the recent-list thumbnail showing where you are (refreshed when things settle).
+  useEffect(() => {
+    if (playing || status !== 'ready') return;
+    const t = setTimeout(saveThumbnail, THUMB_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [frameIdx, playing, status, drawing.drawings, zoom.scale]);
+
+  const leave = onBack;
 
   // Keyboard (handy when developing on a computer): space plays, arrows step.
   useEffect(() => {
@@ -484,7 +541,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <header class="topbar">
-        <button class="icon-button" onClick={onBack} aria-label="Back">
+        <button class="icon-button" onClick={leave} aria-label="Back">
           <IconBack />
         </button>
         <button class="topbar-title" onClick={showDetails}>
@@ -571,7 +628,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
       <section class="controls">
         {landscape && (
           <div class="panel-head">
-            <button class="icon-button" onClick={onBack} aria-label="Back to videos">
+            <button class="icon-button" onClick={leave} aria-label="Back to videos">
               <IconHome />
             </button>
             {soundButton('panel-snapshot')}
@@ -715,7 +772,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
           {forwardButton()}
           {snapshotButton()}
           {recordButton()}
-          <button class="icon-button mini-home" onClick={onBack} aria-label="Back to videos">
+          <button class="icon-button mini-home" onClick={leave} aria-label="Back to videos">
             <IconHome />
           </button>
         </section>

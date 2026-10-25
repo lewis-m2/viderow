@@ -4,12 +4,25 @@ import { Analyse } from './screens/Analyse';
 import { probeVideo, type VideoMeta } from './video/probe';
 import type { Snapshot } from './snapshots';
 import { handleBack } from './backStack';
+import type { Drawing } from './drawing/model';
+import {
+  loadDrawings,
+  loadVideoFile,
+  rememberVideo,
+  touchRecent,
+  videoIdFor,
+  type RecentVideo,
+} from './library';
 
 export interface OpenVideo {
+  /** Key in the on-phone library (name + size). */
+  id: string;
   file: File;
   url: string;
   name: string;
   meta: VideoMeta;
+  /** Drawings saved for this video last time. */
+  drawings: Drawing[];
 }
 
 const SHARE_CACHE = 'shared-video';
@@ -26,6 +39,13 @@ export function App() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [shareError, setShareError] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   // A video shared to the app from Android's share menu (see public/share-target-sw.js).
   useEffect(() => {
@@ -70,7 +90,7 @@ export function App() {
     return () => URL.revokeObjectURL(video.url);
   }, [video]);
 
-  async function open(file: File) {
+  async function open(file: File, recent?: RecentVideo) {
     // Android's photo picker sometimes hands over a file Chrome isn't allowed to read
     // (e.g. a cloud-only video). Catch that here rather than showing a broken screen.
     try {
@@ -80,18 +100,54 @@ export function App() {
       throw new UnreadableFileError();
     }
     const meta = await probeVideo(file);
-    const name = file.name.replace(/\.[^.]+$/, '');
-    setVideo({ file, url: URL.createObjectURL(file), name, meta });
+    const name = recent?.name ?? file.name.replace(/\.[^.]+$/, '');
+    const id = recent?.id ?? videoIdFor(file);
+    const drawings = await loadDrawings(id).catch(() => []);
+    setVideo({ id, file, url: URL.createObjectURL(file), name, meta, drawings });
     history.pushState({ screen: 'analyse' }, '');
+    if (recent) {
+      touchRecent(id).catch(() => {});
+    } else {
+      // Keep a copy on the phone so it can be reopened from the recent list.
+      rememberVideo(file, name).catch((err) => {
+        console.warn('Could not keep a copy', err);
+        setNotice(
+          "Not enough space to keep a copy of this video on the phone, so it won't appear in the recent list. " +
+            'Delete some old videos from the list to free space.',
+        );
+      });
+    }
   }
 
-  if (!video) return <Home onOpen={open} externalError={shareError} receiving={receiving} />;
+  async function openRecent(recent: RecentVideo) {
+    const file = await loadVideoFile(recent);
+    if (!file) throw new Error('The saved copy of this video is missing. Open it again from Files.');
+    await open(file, recent);
+  }
+
+  const toast = notice && (
+    <div class="toast" role="status" onClick={() => setNotice(null)}>
+      {notice}
+    </div>
+  );
+  if (!video) {
+    return (
+      <>
+        <Home onOpen={open} onOpenRecent={openRecent} externalError={shareError} receiving={receiving} />
+        {toast}
+      </>
+    );
+  }
   return (
-    <Analyse
-      video={video}
-      onBack={() => history.back()}
-      snapshots={snapshots}
-      setSnapshots={setSnapshots}
-    />
+    <>
+      <Analyse
+        key={video.url}
+        video={video}
+        onBack={() => history.back()}
+        snapshots={snapshots}
+        setSnapshots={setSnapshots}
+      />
+      {toast}
+    </>
   );
 }

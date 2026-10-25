@@ -240,3 +240,17 @@ export const IconSoundOff = (p: P) => (
     <path d="M16 9.5l5 5M21 9.5l-5 5" />
   </svg>
 );
+
+const STAR = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z';
+
+export const IconStar = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d={STAR} />
+  </svg>
+);
+
+export const IconStarFilled = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d={STAR} fill="currentColor" />
+  </svg>
+);

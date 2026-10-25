@@ -96,6 +96,7 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 **Recent videos**
 - Home screen: big "Open video" button (from gallery) and a list of recent videos, each with its drawings saved on the phone (a stored copy of the video + drawing data in IndexedDB). Allow deleting old ones to free space.
 - Note to user: clearing Chrome's site data wipes this list; originals stay in the gallery.
+- Built (milestone 7): `src/library.ts` with three idb-keyval databases (meta incl. thumbnail, video blobs, drawings). Video id = file name + size (re-opening the same file reuses its copy and drawings). Drawings save ~0.4 s after each change; the thumbnail refreshes ~1 s after things settle (not on unmount: Preact clears refs first). `navigator.storage.persist()` is requested when a copy is stored. No automatic clearing yet; Home shows space used.
 
 ## Design
 

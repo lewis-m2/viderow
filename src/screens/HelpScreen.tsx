@@ -16,6 +16,15 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
     ],
   },
   {
+    title: 'Recent videos',
+    items: [
+      'Every video you open is kept on the phone with its drawings. Tap it in Recent videos to carry on.',
+      '★ marks a video as a reference (e.g. really good technique) for comparing later.',
+      'The bin removes the app’s copy and its drawings to free space. Your original stays in the gallery.',
+      'Clearing Chrome’s site data removes the list.',
+    ],
+  },
+  {
     title: 'Play and step',
     items: [
       'Play button: play / pause. Speeds 1×, ½×, ¼×, ⅛×.',

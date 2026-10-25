@@ -36,11 +36,13 @@ interface Options {
   frame: number;
   /** Called when a drawing gesture starts (pause playback). */
   onDrawStart: () => void;
+  /** Drawings saved for this video last time. */
+  initial?: Drawing[];
 }
 
 
 export function useDrawing(o: Options) {
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawings, setDrawings] = useState<Drawing[]>(() => o.initial ?? []);
   const [tool, setToolState] = useState<Tool>('move');
   const [colour, setColour] = useState(COLOURS[0].value);
   const [thickness, setThickness] = useState<Thickness>('medium');
