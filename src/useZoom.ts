@@ -302,5 +302,13 @@ export function useZoom({ stage, layer, video, onTap, onChange, single, oneFinge
     };
   }, []);
 
-  return { scale, zoomBy, reset, view };
+  /** Current CSS transform of the picture: translate(tx, ty) scale(s). */
+  function transform() {
+    if (!stage.current) return { s: 1, tx: 0, ty: 0 };
+    const z = zoom.current;
+    const { tx, ty } = toTranslate(z, contentRect());
+    return { s: z.s, tx, ty };
+  }
+
+  return { scale, zoomBy, reset, view, transform };
 }

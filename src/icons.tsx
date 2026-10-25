@@ -281,3 +281,11 @@ export const IconSwap = (p: P) => (
     <path d="M7 4v15M3.5 7.5L7 4l3.5 3.5M17 20V5M13.5 16.5L17 20l3.5-3.5" />
   </svg>
 );
+
+/** Overlay: two overlapping frames */
+export const IconOverlay = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3" y="5" width="13" height="10" rx="1.5" />
+    <rect x="8" y="9" width="13" height="10" rx="1.5" />
+  </svg>
+);

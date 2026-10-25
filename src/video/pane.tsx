@@ -28,6 +28,8 @@ export interface PaneOptions {
   onCommit?: () => void;
   /** Save drawings and thumbnail to the library (off when the same video is open twice). */
   persist?: boolean;
+  /** Called after every zoom/pan or picture size change. */
+  onViewChange?: () => void;
 }
 
 /**
@@ -82,6 +84,7 @@ export function useVideoPane(o: PaneOptions) {
     video: videoRef,
     onTap: o.onTap,
     onChange: () => {
+      optsRef.current.onViewChange?.();
       drawingRef.current.requestRender();
       const st = stageRef.current;
       if (st) stepperRef.current?.viewChanged(viewRef.current(), st.clientWidth, st.clientHeight);
@@ -93,6 +96,8 @@ export function useVideoPane(o: PaneOptions) {
   viewRef.current = zoom.view;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const optsRef = useRef(o);
+  optsRef.current = o;
 
   useEffect(() => {
     videoRef.current!.muted = !o.soundOn;

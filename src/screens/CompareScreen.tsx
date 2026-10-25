@@ -6,6 +6,7 @@ import {
   IconFrameBack,
   IconFrameForward,
   IconLink,
+  IconOverlay,
   IconPause,
   IconPlay,
   IconRecord,
@@ -32,6 +33,19 @@ const MAX_DRIFT_S = 0.1;
 const DRIFT_CHECK_MS = 250;
 const COLOUR_A = '#FF8A3D';
 const COLOUR_B = '#4CC9F0';
+/** Align B: how small / large B can be scaled to sit over A. */
+const ALIGN_MIN_SCALE = 0.3;
+const ALIGN_MAX_SCALE = 3;
+const DOUBLE_TAP_MS = 300;
+
+type Mode = 'stacked' | 'overlay';
+
+/** Extra move/scale applied to B in overlay (in A's picture pixels, before A's zoom). */
+interface Align {
+  x: number;
+  y: number;
+  s: number;
+}
 
 interface Props {
   a: OpenVideo;
@@ -66,6 +80,13 @@ export function CompareScreen(p: Props) {
   const undoStack = useRef<string[]>([]);
   const [undoCount, setUndoCount] = useState(0);
   const [active, setActive] = useState(p.a.url);
+  const [mode, setMode] = useState<Mode>('stacked');
+  /** Overlay: how much of B shows through (0 = only A, 1 = only B). */
+  const [ghost, setGhost] = useState(0.5);
+  const [aligning, setAligning] = useState(false);
+  const align = useRef<Align>({ x: 0, y: 0, s: 1 });
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const order = swapped ? [p.b, p.a] : [p.a, p.b];
   const [vA, vB] = order;
@@ -75,6 +96,101 @@ export function CompareScreen(p: Props) {
   const colour = (v: OpenVideo) => (v === vA ? COLOUR_A : COLOUR_B);
   const linked = offset !== null;
   const aState = states[vA.url];
+  const overlay = mode === 'overlay';
+
+  // ---------- overlay ----------
+
+  /** Put B exactly over A: A's zoom/pan, then B's own alignment. */
+  function applyOverlay() {
+    for (const v of order) {
+      const st = panes.current[v.url]?.stageRef.current;
+      if (st && (v !== vB || modeRef.current !== 'overlay')) st.style.transform = '';
+    }
+    if (modeRef.current !== 'overlay') return;
+    const A = paneA();
+    const st = paneB()?.stageRef.current;
+    if (!A || !st) return;
+    const z = A.zoom.transform();
+    const al = align.current;
+    st.style.transformOrigin = '0 0';
+    st.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.s}) translate(${al.x}px, ${al.y}px) scale(${al.s})`;
+  }
+
+  useEffect(() => {
+    // B follows A's zoom in overlay, so its own zoom goes back to 1×.
+    if (overlay) paneB()?.zoom.reset();
+    else setAligning(false);
+    applyOverlay();
+  }, [mode, swapped]);
+
+  // Align B gestures: one finger moves B, two fingers scale it, double-tap resets.
+  const alignPts = useRef(new Map<number, { x: number; y: number }>());
+  const alignGesture = useRef<{
+    start: Align;
+    z: { s: number; tx: number; ty: number };
+    x: number;
+    y: number;
+    d: number;
+    lastTap: number;
+  }>({ start: { x: 0, y: 0, s: 1 }, z: { s: 1, tx: 0, ty: 0 }, x: 0, y: 0, d: 1, lastTap: 0 });
+
+  function alignBegin() {
+    const pts = [...alignPts.current.values()];
+    const g = alignGesture.current;
+    g.start = { ...align.current };
+    g.z = paneA().zoom.transform();
+    g.x = pts.reduce((a, q) => a + q.x, 0) / pts.length;
+    g.y = pts.reduce((a, q) => a + q.y, 0) / pts.length;
+    g.d = pts.length > 1 ? Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)) : 1;
+  }
+
+  function alignMove() {
+    const pts = [...alignPts.current.values()];
+    const g = alignGesture.current;
+    const { s: zs, tx, ty } = g.z;
+    const mx = pts.reduce((a, q) => a + q.x, 0) / pts.length;
+    const my = pts.reduce((a, q) => a + q.y, 0) / pts.length;
+    const scale =
+      pts.length > 1
+        ? Math.min(ALIGN_MAX_SCALE, Math.max(ALIGN_MIN_SCALE, (g.start.s * Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)) / g.d))
+        : g.start.s;
+    // Keep the point of B that was under the fingers under them.
+    const qx = ((g.x - tx) / zs - g.start.x) / g.start.s;
+    const qy = ((g.y - ty) / zs - g.start.y) / g.start.s;
+    align.current = { x: (mx - tx) / zs - scale * qx, y: (my - ty) / zs - scale * qy, s: scale };
+    applyOverlay();
+  }
+
+  const alignHandlers = {
+    onPointerDown: (e: PointerEvent) => {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      alignPts.current.set(e.pointerId, { x: e.clientX - b.left, y: e.clientY - b.top });
+      if (alignPts.current.size === 1) {
+        const g = alignGesture.current;
+        if (e.timeStamp - g.lastTap < DOUBLE_TAP_MS) {
+          align.current = { x: 0, y: 0, s: 1 };
+          applyOverlay();
+        }
+        g.lastTap = e.timeStamp;
+      }
+      alignBegin();
+    },
+    onPointerMove: (e: PointerEvent) => {
+      if (!alignPts.current.has(e.pointerId)) return;
+      const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      alignPts.current.set(e.pointerId, { x: e.clientX - b.left, y: e.clientY - b.top });
+      alignMove();
+    },
+    onPointerUp: (e: PointerEvent) => {
+      alignPts.current.delete(e.pointerId);
+      if (alignPts.current.size) alignBegin();
+    },
+    onPointerCancel: (e: PointerEvent) => {
+      alignPts.current.delete(e.pointerId);
+      if (alignPts.current.size) alignBegin();
+    },
+  };
 
   // ---------- linked controls ----------
 
@@ -145,6 +261,7 @@ export function CompareScreen(p: Props) {
     paneA().pause();
     paneB().pause();
     setOffset(null);
+    align.current = { x: 0, y: 0, s: 1 };
     setSwapped(!swapped);
   }
 
@@ -179,9 +296,9 @@ export function CompareScreen(p: Props) {
 
   // ---------- snapshot / recording of both videos as shown ----------
 
-  /** Bounding box (page px) of both pictures. */
+  /** Bounding box (page px) of both pictures (just A's in overlay, where B sits on top of it). */
   function box() {
-    const rects = order.map((v) => panes.current[v.url]?.stageRef.current?.getBoundingClientRect());
+    const rects = (overlay ? [vA] : order).map((v) => panes.current[v.url]?.stageRef.current?.getBoundingClientRect());
     const ok = rects.filter(Boolean) as DOMRect[];
     const left = Math.min(...ok.map((r) => r.left));
     const top = Math.min(...ok.map((r) => r.top));
@@ -191,6 +308,10 @@ export function CompareScreen(p: Props) {
   }
 
   function paintBoth(ctx: CanvasRenderingContext2D, live: boolean) {
+    if (modeRef.current === 'overlay') {
+      paintOverlay(ctx, live);
+      return;
+    }
     const b = box();
     order.forEach((v, i) => {
       const r = b.rects[i];
@@ -209,6 +330,35 @@ export function CompareScreen(p: Props) {
       ctx.restore();
       drawLabel(ctx, `${label(v)}  ${formatTime(pane.time)}`, x + 8, y + 8, colour(v));
     });
+  }
+
+  /** Overlay as seen: A, then B see-through with A's zoom and B's alignment. */
+  function paintOverlay(ctx: CanvasRenderingContext2D, live: boolean) {
+    const A = paneA();
+    const B = paneB();
+    const r = A.stageRef.current?.getBoundingClientRect();
+    if (!r) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, r.width, r.height);
+    ctx.clip();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, r.width, r.height);
+    A.paintStage(ctx, live);
+    ctx.globalAlpha = ghost;
+    const z = A.zoom.transform();
+    const al = align.current;
+    ctx.transform(z.s, 0, 0, z.s, z.tx, z.ty);
+    ctx.transform(al.s, 0, 0, al.s, al.x, al.y);
+    B.paintStage(ctx, live);
+    ctx.restore();
+    drawLabel(ctx, `${label(vA)}  ${formatTime(A.time)}`, 8, 8, COLOUR_A);
+    const bText = `${label(vB)}  ${formatTime(B.time)}`;
+    ctx.save();
+    ctx.font = '700 14px Inter, system-ui, sans-serif';
+    const w = ctx.measureText(bText).width + 16;
+    ctx.restore();
+    drawLabel(ctx, bText, r.width - w - 8, 8, COLOUR_B);
   }
 
   const rec = useRecording({
@@ -243,6 +393,20 @@ export function CompareScreen(p: Props) {
       {rec.isRecording ? <IconStop /> : <IconRecord />}
     </button>
   );
+  const modeSwitch = (
+    <div class="segmented cmp-mode" role="radiogroup" aria-label="View">
+      {(
+        [
+          ['stacked', landscape ? 'Side by side' : 'Stacked'],
+          ['overlay', 'Overlay'],
+        ] as const
+      ).map(([m, text]) => (
+        <button role="radio" aria-checked={mode === m} class={mode === m ? 'is-selected' : ''} onClick={() => setMode(m)}>
+          {text}
+        </button>
+      ))}
+    </div>
+  );
   const headButtons = (
     <>
       <button class="icon-button" onClick={swap} aria-label="Swap A and B">
@@ -267,14 +431,19 @@ export function CompareScreen(p: Props) {
         <button class="icon-button" onClick={p.onBack} aria-label="Back">
           <IconBack />
         </button>
-        <h2 class="cmp-title">Compare</h2>
+        {modeSwitch}
         {headButtons}
       </header>
 
-      <div class={`cmp-panes ${rec.isRecording ? 'is-recording' : ''}`} ref={panesBox}>
+      <div
+        class={`cmp-panes ${overlay ? 'cmp-overlay' : ''} ${rec.isRecording ? 'is-recording' : ''}`}
+        ref={panesBox}
+        style={{ '--ghost': String(ghost) }}
+      >
         {order.map((v) => (
           <ComparePane
             key={v.url}
+            slot={v === vA ? 'a' : 'b'}
             video={v}
             label={label(v)}
             colour={colour(v)}
@@ -286,10 +455,42 @@ export function CompareScreen(p: Props) {
             onState={(s) => setStates((old) => ({ ...old, [v.url]: s }))}
             onCommit={() => onCommit(v.url)}
             onTouch={() => setActive(v.url)}
+            onViewChange={v === vA ? applyOverlay : undefined}
           />
         ))}
+        {overlay && aligning && (
+          // Over both pictures: gestures here move/scale only B.
+          <div class="align-layer" {...alignHandlers}>
+            <span class="align-hint">Drag / pinch to line B up with A · double-tap to reset</span>
+          </div>
+        )}
         {rec.isRecording && <RecBar rec={rec} />}
       </div>
+
+      {overlay && (
+        <div class="cmp-overlay-controls">
+          <span class="ghost-end" style={{ color: COLOUR_A }}>A</span>
+          <input
+            class="timeline ghost-slider"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(ghost * 100)}
+            style={{ '--pct': `${ghost * 100}%` }}
+            aria-label="See-through: A to B"
+            onInput={(e) => setGhost(Number((e.currentTarget as HTMLInputElement).value) / 100)}
+          />
+          <span class="ghost-end" style={{ color: COLOUR_B }}>B</span>
+          <button
+            class={`secondary-button small-button ${aligning ? 'is-on' : ''}`}
+            onClick={() => setAligning(!aligning)}
+            aria-pressed={aligning}
+          >
+            {aligning ? 'Done' : 'Align B'}
+          </button>
+        </div>
+      )}
 
       {linked ? (
         <section class="cmp-linked">
@@ -338,6 +539,13 @@ export function CompareScreen(p: Props) {
           <div class="cmp-bottom-head">
             <button class="icon-button" onClick={p.onBack} aria-label="Back">
               <IconBack />
+            </button>
+            <button
+              class={`icon-button ${overlay ? 'is-on' : ''}`}
+              onClick={() => setMode(overlay ? 'stacked' : 'overlay')}
+              aria-label={overlay ? 'Side by side' : 'Overlay'}
+            >
+              <IconOverlay />
             </button>
             {headButtons}
           </div>
@@ -394,6 +602,8 @@ export function CompareScreen(p: Props) {
 }
 
 interface PaneProps {
+  /** a = first (top / left / underneath in overlay), b = second. */
+  slot: 'a' | 'b';
   video: OpenVideo;
   label: string;
   colour: string;
@@ -405,6 +615,7 @@ interface PaneProps {
   onState: (s: PaneState) => void;
   onCommit: () => void;
   onTouch: () => void;
+  onViewChange?: () => void;
 }
 
 /** One of the two videos: label + time, picture, and (when not linked) its own frame controls. */
@@ -417,6 +628,7 @@ function ComparePane(p: PaneProps) {
     cacheBytes: DEFAULT_CACHE_BYTES / 2,
     onCommit: p.onCommit,
     persist: p.persist,
+    onViewChange: p.onViewChange,
   });
   p.onPane(pane);
 
@@ -425,19 +637,25 @@ function ComparePane(p: PaneProps) {
   }, [pane.frameIdx, pane.time, pane.playing]);
 
   return (
-    <div class={`cmp-pane ${p.active ? 'is-active' : ''}`} onPointerDownCapture={p.onTouch}>
-      <PaneStage pane={pane}>
+    <div class={`cmp-pane is-${p.slot} ${p.active ? 'is-active' : ''}`} onPointerDownCapture={p.onTouch}>
+      <div class="cmp-wrap">
+        <PaneStage pane={pane}>
+          {pane.status !== 'ready' && (
+            <div class="stage-message">
+              <p>{pane.status === 'loading' ? 'Loading video…' : `Can't play this video: ${pane.status}`}</p>
+            </div>
+          )}
+        </PaneStage>
+        {/* Outside the stage, so it isn't moved/scaled with B in overlay. */}
         <div class="cmp-label" style={{ color: p.colour }}>
           {p.label} <span class="cmp-time">{formatTime(pane.time)}</span>
         </div>
-        {pane.status !== 'ready' && (
-          <div class="stage-message">
-            <p>{pane.status === 'loading' ? 'Loading video…' : `Can't play this video: ${pane.status}`}</p>
-          </div>
-        )}
-      </PaneStage>
+      </div>
       {!p.linked && (
         <div class="cmp-row">
+          <span class="cmp-row-tag" style={{ color: p.colour }}>
+            {p.slot.toUpperCase()}
+          </span>
           <HoldButton class="frame-button" label={`${p.label}: previous frame`} onStep={() => pane.step(-1)}>
             <IconFrameBack />
           </HoldButton>

@@ -80,6 +80,8 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
       'Then tap Link: one strip, play and speed move both (matched by time). If they drift apart over a long clip, Unlink, line them up again and Link.',
       'Zoom and draw on each video separately; Undo works across both. Swap A/B with the arrows button.',
       'Snapshot and record capture both videos, with A/B labels. Turn the phone sideways for side by side.',
+      'Overlay: B is drawn see-through on top of A. The A ↔ B slider sets how much of B shows.',
+      'Align B: drag and pinch to move and size B so the boats sit on top of each other (double-tap resets). Tap Done, then zoom and pan as usual — B stays lined up. Works best when both were filmed from a similar spot.',
     ],
   },
   {

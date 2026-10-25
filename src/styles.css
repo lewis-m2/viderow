@@ -1575,3 +1575,136 @@ button {
 .is-landscape .zoom-row .zoom-button {
   width: 48px;
 }
+
+/* ---------- Compare overlay ---------- */
+.cmp-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.cmp-wrap .stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.cmp-mode {
+  flex: 1;
+  max-width: 230px;
+}
+
+.cmp-mode button {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.cmp-row-tag {
+  display: none;
+  width: 18px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Overlay: both pictures in one spot (B on top, see-through); each video's controls below. */
+.cmp-panes.cmp-overlay {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'view' 'rowa' 'rowb';
+  gap: 0;
+}
+
+.cmp-overlay .cmp-pane {
+  display: contents;
+}
+
+.cmp-overlay .cmp-wrap {
+  grid-area: view;
+}
+
+.cmp-overlay .is-b .cmp-wrap {
+  pointer-events: none;
+}
+
+/* Only B's picture is see-through (its label stays solid). */
+.cmp-overlay .is-b .stage {
+  opacity: var(--ghost);
+}
+
+/* B's label stays fully visible, top right. */
+.cmp-overlay .is-b .cmp-label {
+  left: auto;
+  right: 8px;
+}
+
+
+.cmp-overlay .is-a .cmp-row {
+  grid-area: rowa;
+}
+
+.cmp-overlay .is-b .cmp-row {
+  grid-area: rowb;
+}
+
+.cmp-overlay .cmp-row-tag {
+  display: block;
+}
+
+.cmp-overlay .cmp-pane.is-active .stage {
+  box-shadow: none;
+}
+
+.align-layer {
+  grid-area: view;
+  z-index: 5;
+  position: relative;
+  touch-action: none;
+  box-shadow: inset 0 0 0 3px var(--draw-cyan);
+}
+
+.align-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(14, 17, 22, 0.8);
+  color: var(--draw-cyan);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cmp-overlay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px;
+}
+
+.ghost-slider {
+  flex: 1;
+}
+
+.ghost-end {
+  font-weight: 800;
+}
+
+.secondary-button.is-on,
+.icon-button.is-on {
+  background: var(--draw-cyan);
+  color: #111;
+}
+
+.cmp-land .cmp-panes.cmp-overlay {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'view view'
+    'rowa rowb';
+}
