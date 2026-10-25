@@ -4,10 +4,11 @@ import { toStage, toVideo, type SingleFingerHandler, type View } from '../useZoo
 import {
   COLOURS,
   THICKNESS_PX,
+  distToSegment,
   handles,
   newId,
+  segments,
   visibleOn,
-  withHandle,
   type Drawing,
   type Pt,
   type Scope,
@@ -19,8 +20,8 @@ import { renderAngle, renderDrawing } from './render';
 const LOUPE_SIZE = 120;
 const LOUPE_MAG = 2;
 const LOUPE_OFFSET = 110;
-/** How close (screen px) a finger must be to grab a drawing's point with a drawing tool. */
-const HANDLE_HIT_PX = 26;
+/** How close (screen px) the Erase tool must come to a drawing to remove it. */
+const ERASE_HIT_PX = 20;
 const MIN_LINE_PX = 8;
 const MAX_UNDO = 100;
 
@@ -37,7 +38,6 @@ interface Options {
   onDrawStart: () => void;
 }
 
-type Drag = { id: string; index: number; original: Drawing };
 
 export function useDrawing(o: Options) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -58,8 +58,8 @@ export function useDrawing(o: Options) {
   const draft = useRef<Drawing | null>(null);
   const anglePts = useRef<Pt[]>([]);
   const anglePending = useRef<Pt | null>(null);
-  const edit = useRef<Drawing | null>(null);
-  const drag = useRef<Drag | null>(null);
+  /** Drawings touched by the current Erase gesture (hidden until the finger lifts). */
+  const erasing = useRef<Set<string> | null>(null);
   const loupeAt = useRef<Pt | null>(null);
   const frameReq = useRef(0);
 
@@ -138,20 +138,14 @@ export function useDrawing(o: Options) {
   /** Everything to draw right now, with any in-progress edit swapped in. */
   function shown(): Drawing[] {
     const s = st.current;
-    const list = s.drawings
-      .filter((d) => visibleOn(d, s.frame))
-      .map((d) => (edit.current && edit.current.id === d.id ? edit.current : d));
+    const list = s.drawings.filter((d) => visibleOn(d, s.frame) && !erasing.current?.has(d.id));
     if (draft.current) list.push(draft.current);
     return list;
   }
 
   function paint(ctx: CanvasRenderingContext2D, map: (p: Pt) => Pt) {
     const s = st.current;
-    // With a drawing tool on, show the points that can be dragged.
-    for (const d of shown()) {
-      const style = d.id === s.selectedId ? 'strong' : s.tool !== 'move' ? 'subtle' : 'none';
-      renderDrawing(ctx, d, map, style);
-    }
+    for (const d of shown()) renderDrawing(ctx, d, map, d.id === s.selectedId ? 'strong' : 'none');
     const pts = [...anglePts.current];
     if (anglePending.current) pts.push(anglePending.current);
     if (pts.length) renderAngle(ctx, pts.map(map), s.colour, THICKNESS_PX[s.thickness]);
@@ -257,19 +251,21 @@ export function useDrawing(o: Options) {
 
   // ---------- one-finger gestures ----------
 
-  /** A drawing's point under the finger (selected drawing first, then topmost). */
-  function hitHandle(sp: Pt, v: View): Drag | null {
+  /** Erase every visible drawing near the finger. */
+  function eraseAt(sp: Pt, v: View) {
     const s = st.current;
-    const list = s.drawings.filter((d) => visibleOn(d, s.frame));
-    const ordered = [...list].reverse().sort((a, b) => Number(b.id === s.selectedId) - Number(a.id === s.selectedId));
-    for (const d of ordered) {
-      const hs = handles(d);
-      for (let i = 0; i < hs.length; i++) {
-        const h = toStage(v, hs[i]);
-        if (Math.hypot(h.x - sp.x, h.y - sp.y) <= HANDLE_HIT_PX) return { id: d.id, index: i, original: d };
-      }
+    const set = erasing.current;
+    if (!set) return;
+    for (const d of s.drawings) {
+      if (!visibleOn(d, s.frame) || set.has(d.id)) continue;
+      const reach = ERASE_HIT_PX + THICKNESS_PX[d.thickness] / 2;
+      const nearLine = segments(d).some(([a, b]) => distToSegment(sp, toStage(v, a), toStage(v, b)) <= reach);
+      const nearPoint = handles(d).some((h) => {
+        const q = toStage(v, h);
+        return Math.hypot(q.x - sp.x, q.y - sp.y) <= reach;
+      });
+      if (nearLine || nearPoint) set.add(d.id);
     }
-    return null;
   }
 
   const single = useRef<SingleFingerHandler>({
@@ -280,19 +276,11 @@ export function useDrawing(o: Options) {
       const s = st.current;
       // Pan mode: one finger pans / taps (handled by the zoom code). Drawings can't be grabbed.
       if (s.tool === 'move') return false;
-      // With a drawing tool, pressing on an existing point drags it (unless mid-way through an angle).
-      const hit = anglePts.current.length ? null : hitHandle(sp, v);
-      if (hit) {
-        opts.current.onDrawStart();
-        setSelectedId(hit.id);
-        st.current.selectedId = hit.id;
-        drag.current = hit;
-        edit.current = hit.original;
-        loupeAt.current = handles(hit.original)[hit.index];
-        requestRender();
-        return true;
-      }
       switch (s.tool) {
+        case 'erase':
+          erasing.current = new Set();
+          eraseAt(sp, v);
+          break;
         case 'line':
         case 'arrow':
           opts.current.onDrawStart();
@@ -317,10 +305,8 @@ export function useDrawing(o: Options) {
       const v = opts.current.getView();
       const p = toVideo(v, sp);
       const d = draft.current;
-      if (drag.current) {
-        const g = drag.current;
-        edit.current = withHandle(g.original, g.index, p);
-        loupeAt.current = p;
+      if (erasing.current) {
+        eraseAt(sp, v);
       } else if (d && (d.kind === 'line' || d.kind === 'arrow')) {
         draft.current = { ...d, b: p };
         loupeAt.current = p;
@@ -338,13 +324,13 @@ export function useDrawing(o: Options) {
       const v = opts.current.getView();
       const p = toVideo(v, sp);
       const d = draft.current;
-      if (drag.current) {
-        const changed = edit.current;
-        const id = drag.current.id;
-        drag.current = null;
-        edit.current = null;
-        if (changed && changed !== st.current.drawings.find((x) => x.id === id)) {
-          commit(st.current.drawings.map((x) => (x.id === id ? changed : x)));
+      if (erasing.current) {
+        const gone = erasing.current;
+        erasing.current = null;
+        // One erase gesture = one undo step.
+        if (gone.size) {
+          commit(st.current.drawings.filter((x) => !gone.has(x.id)));
+          if (st.current.selectedId && gone.has(st.current.selectedId)) setSelectedId(null);
         }
       } else if (d && (d.kind === 'line' || d.kind === 'arrow')) {
         const a = toStage(v, d.a);
@@ -371,8 +357,7 @@ export function useDrawing(o: Options) {
       // for an angle are kept, so you can zoom in between taps.
       draft.current = null;
       anglePending.current = null;
-      drag.current = null;
-      edit.current = null;
+      erasing.current = null;
       loupeAt.current = null;
       requestRender();
     },

@@ -191,3 +191,11 @@ export const IconHelp = (p: P) => (
     <circle cx="12" cy="17.2" r="0.6" fill="currentColor" />
   </svg>
 );
+
+/** Eraser */
+export const IconErase = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 20h11M4.5 15.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 20H9l-4.5-4.5z" />
+    <path d="M9.5 10.5l6 6" />
+  </svg>
+);

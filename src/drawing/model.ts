@@ -4,7 +4,8 @@ export interface Pt {
   y: number;
 }
 
-export type Tool = 'move' | 'line' | 'arrow' | 'free' | 'angle';
+/** 'move' is Pan mode (one finger pans; drawings are never edited, only erased). */
+export type Tool = 'move' | 'line' | 'arrow' | 'free' | 'angle' | 'erase';
 export type Thickness = 'thin' | 'medium' | 'thick';
 export type Scope = 'frame' | 'video';
 

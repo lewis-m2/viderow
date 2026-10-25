@@ -57,11 +57,11 @@ The user is a rowing coach, comfortable with Flutter and sideloading Android app
 - **No** reset button, **no** mini-map.
 - Zoom **stays locked** while playing and stepping.
 - One finger never zooms; two fingers never draw.
-- **Pan mode** (the default tool, was "Move"): one finger pans the zoomed picture; drawings can't be grabbed. **Drawing tools**: one finger draws; pressing on an existing drawing's point (shown as small rings) drags that point. Two fingers pinch/pan in every mode. (Agreed 2026-10-25.)
+- **Pan mode** (the default tool, was "Move"): one finger pans the zoomed picture; drawings can't be grabbed. **Drawing tools**: one finger draws. Drawings are **never moved or edited** once made (so a new drawing can start on an old point); the **Erase** tool removes a drawing by tapping/dragging over it (one gesture = one undo step). Two fingers pinch/pan in every mode. (Agreed 2026-10-25; replaces the earlier move/edit tool.)
 - Home has a **How to use** button with a short controls guide (keep it up to date when controls change).
 
 **Drawing**
-- Tools: move/edit, line, arrow, freehand, **one angle tool (tap 3 points; angle measured at the middle point, 0–180°, shown with an arc and a degree label)**, undo, clear all (with confirm), colour (yellow, cyan, pink, white), thickness (thin, medium, thick).
+- Tools: pan, line, arrow, freehand, **one angle tool (tap 3 points; angle measured at the middle point, 0–180°, shown with an arc and a degree label)**, undo, clear all (with confirm), colour (yellow, cyan, pink, white), thickness (thin, medium, thick).
 - A zoom bubble (loupe) shows under the finger while placing points.
 - Each drawing is set to **this frame only** or **whole video**.
 - Built (milestone 4, revised after phone test): new drawings default to **whole video**; line widths and labels stay the same size on screen at any zoom; the drawing canvas sits outside the zoom layer and maps video coordinates through the zoom. Long-press on the video must never show Chrome's video menu (zoom layer has `pointer-events: none`, contextmenu blocked). Landscape: left rail = Move/Line/Angle/Draw/Arrow/Undo/Clear/Colour + a button to slide the rail away (a pen tab on the video brings it back); the back/home button lives in the right panel (and the collapsed column), not the rail, so it isn't mistaken for hiding tools.

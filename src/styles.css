@@ -597,7 +597,7 @@ button {
 
 .tools {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(9, 1fr);
   gap: 2px;
   padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
   background: var(--surface);

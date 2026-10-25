@@ -7,6 +7,7 @@ import {
   IconBack,
   IconCamera,
   IconDraw,
+  IconErase,
   IconLine,
   IconPan,
   IconTrash,
@@ -61,6 +62,7 @@ const TOOLS: Array<{ tool: Tool; label: string; icon: () => preact.JSX.Element }
   { tool: 'angle', label: 'Angle', icon: () => <IconAngle /> },
   { tool: 'free', label: 'Draw', icon: () => <IconDraw /> },
   { tool: 'arrow', label: 'Arrow', icon: () => <IconArrow /> },
+  { tool: 'erase', label: 'Erase', icon: () => <IconErase /> },
 ];
 
 type StepMode = { kind: 'checking' } | { kind: 'fast' } | { kind: 'basic'; reason: string };
