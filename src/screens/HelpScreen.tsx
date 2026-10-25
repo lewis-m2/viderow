@@ -21,6 +21,7 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
       '⏮ ⏭: one frame back / forward. Hold to keep stepping.',
       'Scrub strip (the ruler): drag slowly for single frames. Drag left = forward.',
       'Timeline: drag to jump anywhere in the video.',
+      'Speaker button: video sound on/off. It starts off (engine noise); the app remembers your choice.',
     ],
   },
   {

@@ -6,6 +6,8 @@ import {
   IconArrow,
   IconBack,
   IconCamera,
+  IconSound,
+  IconSoundOff,
   IconMic,
   IconMicOff,
   IconRecord,
@@ -45,6 +47,16 @@ import { MAX_RECORD_SECONDS, Recorder, type Recording } from '../recording/recor
 /** Snapshots are rendered at the screen's pixel density, capped to keep files reasonable. */
 const SNAPSHOT_MAX_DPR = 3;
 const SNAPSHOT_QUALITY = 0.9;
+const SOUND_KEY = 'videoSound';
+
+/** Video sound starts off (mostly coach-boat engine); the choice is remembered on this phone. */
+function loadSoundOn(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
 
 const SPEEDS = [
   { rate: 1, label: '1×' },
@@ -97,6 +109,16 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   const [voice, setVoice] = useState(true);
   const [hasMic, setHasMic] = useState(false);
   const [recording, setRecording] = useState<Recording | null>(null);
+  const [soundOn, setSoundOn] = useState(loadSoundOn);
+
+  useEffect(() => {
+    ref.current!.muted = !soundOn;
+    try {
+      localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off');
+    } catch {
+      /* storage blocked: still works for this session */
+    }
+  }, [soundOn]);
   const stepperRef = useRef<Stepper | null>(null);
   const [time, setTime] = useState(0);
   const [waiting, setWaiting] = useState(false);
@@ -416,6 +438,16 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
   );
   const fmtSecs = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 
+  const soundButton = (cls = '') => (
+    <button
+      class={`icon-button ${cls}`}
+      onClick={() => setSoundOn(!soundOn)}
+      aria-label={soundOn ? 'Video sound on (tap to mute)' : 'Video sound off (tap to unmute)'}
+    >
+      {soundOn ? <IconSound /> : <IconSoundOff />}
+    </button>
+  );
+
   const snapshotButton = (cls = '') => (
     <button class={`icon-button ${cls}`} onClick={takeSnapshot} aria-label="Take snapshot">
       <IconCamera />
@@ -457,6 +489,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
           <div class="video-name">{video.name}</div>
           <div class="muted small">{fpsLabel}</div>
         </button>
+        {soundButton()}
         {snapshotButton()}
         {recordButton()}
       </header>
@@ -464,7 +497,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
       <div class={`stage ${isRecording ? 'is-recording' : ''}`} ref={stageRef}>
         {/* One transform moves the video and the cached frame together. */}
         <div class="zoom-layer" ref={layerRef}>
-          <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture />
+          <video ref={ref} src={video.url} playsInline preload="auto" disablePictureInPicture muted={!soundOn} />
           <canvas ref={canvasRef} class="frame-canvas" />
         </div>
         {/* Drawings sit outside the zoom layer so lines stay crisp; they're mapped through the zoom. */}
@@ -539,6 +572,7 @@ export function Analyse({ video, onBack, snapshots, setSnapshots }: Props) {
             <button class="icon-button" onClick={onBack} aria-label="Back to videos">
               <IconHome />
             </button>
+            {soundButton('panel-snapshot')}
             {snapshotButton('panel-snapshot')}
             {recordButton('panel-snapshot')}
             <button class="icon-button" onClick={() => setCollapsed(true)} aria-label="Hide panel">

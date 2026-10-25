@@ -1165,3 +1165,8 @@ button {
   min-height: 44px;
   height: 44px;
 }
+
+/* Landscape panel head holds 5 buttons: keep them compact. */
+.panel-head .icon-button {
+  min-width: 42px;
+}
