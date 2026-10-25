@@ -38,15 +38,35 @@ interface Options {
   onDrawStart: () => void;
   /** Drawings saved for this video last time. */
   initial?: Drawing[];
+  /** Tool / colour / thickness / scope (shared between both videos in Compare). */
+  settings: DrawingSettings;
+  /** Called after each change to the drawings (so Compare can undo across both videos). */
+  onCommit?: () => void;
+}
+
+export interface DrawingSettings {
+  tool: Tool;
+  setTool: (t: Tool) => void;
+  colour: string;
+  setColour: (c: string) => void;
+  thickness: Thickness;
+  setThickness: (t: Thickness) => void;
+  scope: Scope;
+  setScope: (s: Scope) => void;
+}
+
+export function useDrawingSettings(): DrawingSettings {
+  const [tool, setTool] = useState<Tool>('move');
+  const [colour, setColour] = useState(COLOURS[0].value);
+  const [thickness, setThickness] = useState<Thickness>('medium');
+  const [scope, setScope] = useState<Scope>('video');
+  return { tool, setTool, colour, setColour, thickness, setThickness, scope, setScope };
 }
 
 
 export function useDrawing(o: Options) {
   const [drawings, setDrawings] = useState<Drawing[]>(() => o.initial ?? []);
-  const [tool, setToolState] = useState<Tool>('move');
-  const [colour, setColour] = useState(COLOURS[0].value);
-  const [thickness, setThickness] = useState<Thickness>('medium');
-  const [scope, setScope] = useState<Scope>('video');
+  const { tool, colour, thickness, scope } = o.settings;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
 
@@ -71,6 +91,7 @@ export function useDrawing(o: Options) {
     st.current.drawings = next;
     setDrawings(next);
     setCanUndo(true);
+    opts.current.onCommit?.();
   }
 
   function undo() {
@@ -83,10 +104,10 @@ export function useDrawing(o: Options) {
     if (selectedId && !prev.some((d) => d.id === selectedId)) setSelectedId(null);
   }
 
-  function clearAll() {
+  function clearAll(askFirst = true) {
     if (!st.current.drawings.length) return;
     const n = st.current.drawings.length;
-    if (!confirm(`Delete all ${n} drawing${n === 1 ? '' : 's'} in this video?`)) return;
+    if (askFirst && !confirm(`Delete all ${n} drawing${n === 1 ? '' : 's'} in this video?`)) return;
     commit([]);
     setSelectedId(null);
   }
@@ -96,12 +117,13 @@ export function useDrawing(o: Options) {
     if (selectedId === id) setSelectedId(null);
   }
 
-  function setTool(t: Tool) {
+  // A new tool abandons any half-placed angle.
+  useEffect(() => {
     anglePts.current = [];
     anglePending.current = null;
     draft.current = null;
-    setToolState(t);
-  }
+    requestRender();
+  }, [tool]);
 
   function select(id: string) {
     setSelectedId(id);
@@ -109,9 +131,9 @@ export function useDrawing(o: Options) {
 
   /** Change a style setting: becomes the default, and applies to the selected drawing. */
   function restyle(patch: Partial<Pick<Drawing, 'colour' | 'thickness' | 'scope'>>) {
-    if (patch.colour) setColour(patch.colour);
-    if (patch.thickness) setThickness(patch.thickness);
-    if (patch.scope) setScope(patch.scope);
+    if (patch.colour) o.settings.setColour(patch.colour);
+    if (patch.thickness) o.settings.setThickness(patch.thickness);
+    if (patch.scope) o.settings.setScope(patch.scope);
     const id = st.current.selectedId;
     if (id) {
       commit(
@@ -230,7 +252,8 @@ export function useDrawing(o: Options) {
         /* video not ready */
       }
     }
-    paint(ctx, (p) => ({ x: (p.x - at.x) * kL + L / 2, y: (p.y - at.y) * kL + L / 2 }));
+    const kLy = v.ky * LOUPE_MAG;
+    paint(ctx, (p) => ({ x: (p.x - at.x) * kL + L / 2, y: (p.y - at.y) * kLy + L / 2 }));
     ctx.restore();
     // Crosshair and rim.
     ctx.strokeStyle = 'rgba(242, 244, 247, 0.9)';
@@ -376,11 +399,6 @@ export function useDrawing(o: Options) {
   return {
     drawings,
     visible,
-    tool,
-    setTool,
-    colour,
-    thickness,
-    scope,
     restyle,
     selectedId,
     select,

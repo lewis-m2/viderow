@@ -29,8 +29,9 @@ export interface View {
   /** Video size in pixels (as displayed, rotation applied). 0 until the video has loaded. */
   vw: number;
   vh: number;
-  /** Stage pixels per video pixel. */
+  /** Stage pixels per video pixel, across (k) and down (ky; equal to k within half a pixel). */
   k: number;
+  ky: number;
   /** Stage position of video pixel (0, 0). */
   ox: number;
   oy: number;
@@ -38,12 +39,12 @@ export interface View {
 
 export const toStage = (v: View, p: { x: number; y: number }) => ({
   x: v.ox + p.x * v.k,
-  y: v.oy + p.y * v.k,
+  y: v.oy + p.y * v.ky,
 });
 
 export const toVideo = (v: View, p: { x: number; y: number }) => ({
   x: (p.x - v.ox) / v.k,
-  y: (p.y - v.oy) / v.k,
+  y: (p.y - v.oy) / v.ky,
 });
 
 /**
@@ -88,7 +89,10 @@ export function useZoom({ stage, layer, video, onTap, onChange, single, oneFinge
     const vw = video.current?.videoWidth || W;
     const vh = video.current?.videoHeight || H;
     const k = Math.min(W / vw, H / vh);
-    return { x: (W - vw * k) / 2, y: (H - vh * k) / 2, w: vw * k, h: vh * k };
+    // Whole pixels, so the video and the cached frame (same box) always line up exactly.
+    const w = Math.round(vw * k);
+    const h = Math.round(vh * k);
+    return { x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h };
   }
 
   function clampAxis(t: number, s: number, size: number, c0: number, cw: number): number {
@@ -118,8 +122,16 @@ export function useZoom({ stage, layer, video, onTap, onChange, single, oneFinge
   function apply() {
     if (!stage.current || !layer.current) return;
     const z = zoom.current;
-    const { tx, ty } = toTranslate(z, contentRect());
+    const r = contentRect();
+    const { tx, ty } = toTranslate(z, r);
     layer.current.style.transform = `translate(${tx}px, ${ty}px) scale(${z.s})`;
+    // Size the picture elements to the picture itself (no letterboxing inside them).
+    for (const child of Array.from(layer.current.children) as HTMLElement[]) {
+      child.style.left = `${r.x}px`;
+      child.style.top = `${r.y}px`;
+      child.style.width = `${r.w}px`;
+      child.style.height = `${r.h}px`;
+    }
     setScale(Math.round(z.s * 10) / 10);
     onChangeRef.current?.();
   }
@@ -127,11 +139,11 @@ export function useZoom({ stage, layer, video, onTap, onChange, single, oneFinge
   function view(): View {
     const vw = video.current?.videoWidth ?? 0;
     const vh = video.current?.videoHeight ?? 0;
-    if (!stage.current || !vw || !vh) return { vw: 0, vh: 0, k: 1, ox: 0, oy: 0 };
+    if (!stage.current || !vw || !vh) return { vw: 0, vh: 0, k: 1, ky: 1, ox: 0, oy: 0 };
     const r = contentRect();
     const z = zoom.current;
     const { tx, ty } = toTranslate(z, r);
-    return { vw, vh, k: (z.s * r.w) / vw, ox: tx + z.s * r.x, oy: ty + z.s * r.y };
+    return { vw, vh, k: (z.s * r.w) / vw, ky: (z.s * r.h) / vh, ox: tx + z.s * r.x, oy: ty + z.s * r.y };
   }
 
   /** Zoom to scale s keeping the stage point (px, py) fixed under the finger. */

@@ -254,3 +254,30 @@ export const IconStarFilled = (p: P) => (
     <path d={STAR} fill="currentColor" />
   </svg>
 );
+
+/** Compare: two stacked frames */
+export const IconCompare = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3" y="3.5" width="18" height="7.5" rx="1.5" />
+    <rect x="3" y="13" width="18" height="7.5" rx="1.5" />
+  </svg>
+);
+
+export const IconLink = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </svg>
+);
+
+export const IconUnlink = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M15.5 13.5l3.2-3.2a4 4 0 0 0-5.7-5.7l-1 1M8.5 10.5l-3.2 3.2a4 4 0 0 0 5.7 5.7l1-1M4 4l16 16" />
+  </svg>
+);
+
+export const IconSwap = (p: P) => (
+  <svg class={cls(p)} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 4v15M3.5 7.5L7 4l3.5 3.5M17 20V5M13.5 16.5L17 20l3.5-3.5" />
+  </svg>
+);

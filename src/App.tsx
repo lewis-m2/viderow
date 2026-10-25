@@ -146,6 +146,7 @@ export function App() {
         onBack={() => history.back()}
         snapshots={snapshots}
         setSnapshots={setSnapshots}
+        onCompare={() => {}}
       />
       {toast}
     </>

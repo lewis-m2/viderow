@@ -152,8 +152,8 @@ export class Stepper {
     // Visible area in displayed-video pixels, plus a margin, kept inside the picture.
     let x0 = Math.max(0, -v.ox / v.k);
     let x1 = Math.min(v.vw, (W - v.ox) / v.k);
-    let y0 = Math.max(0, -v.oy / v.k);
-    let y1 = Math.min(v.vh, (H - v.oy) / v.k);
+    let y0 = Math.max(0, -v.oy / v.ky);
+    let y1 = Math.min(v.vh, (H - v.oy) / v.ky);
     const mx = (x1 - x0) * CROP_MARGIN;
     const my = (y1 - y0) * CROP_MARGIN;
     x0 = Math.max(0, x0 - mx);

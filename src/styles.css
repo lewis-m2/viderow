@@ -189,6 +189,13 @@ button {
   object-fit: contain;
 }
 
+/* Inside the zoom layer, useZoom sizes the video and cached frame to the picture's box. */
+.zoom-layer > video,
+.zoom-layer > canvas {
+  position: absolute;
+  object-fit: fill;
+}
+
 .info {
   display: flex;
   flex-direction: column;
@@ -1320,4 +1327,11 @@ button {
   color: #111;
   font-weight: 700;
   font-size: 16px;
+}
+
+/* Keep the top bar one height: the fps/length line never wraps. */
+.topbar-title .small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
