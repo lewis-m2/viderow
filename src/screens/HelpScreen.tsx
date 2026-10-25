@@ -10,7 +10,8 @@ const SECTIONS: Array<{ title: string; items: string[] }> = [
   {
     title: 'Open a video',
     items: [
-      'Tap Open video, then pick it from Files › DCIM › Camera.',
+      'Quickest: in Google Photos or Gallery, open the video, tap Share › Row Coach.',
+      'Or tap Open video and pick it from Files › DCIM › Camera.',
       'If a video won’t open, turn off the camera’s “high efficiency” / HEVC setting, or film at 1080p.',
     ],
   },

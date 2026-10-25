@@ -1170,3 +1170,66 @@ button {
 .panel-head .icon-button {
   min-width: 42px;
 }
+
+.share-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.share-tip p {
+  margin: 0;
+}
+
+.share-tip strong {
+  color: var(--text);
+}
+
+.share-tip .icon {
+  color: var(--accent);
+  margin-top: 1px;
+}
+
+/* Snapshot screen, landscape: keep everything (including the strip) on screen. */
+@media (orientation: landscape) {
+  .snapshot-body {
+    padding-bottom: 8px;
+  }
+
+  .snapshot-side {
+    min-height: 0;
+    gap: 8px;
+  }
+
+  .snapshot-note textarea {
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+
+  .snapshot-note textarea[rows] {
+    height: 64px;
+  }
+
+  .snapshot-actions .primary-button,
+  .snapshot-actions .secondary-button {
+    min-height: 48px;
+  }
+
+  .snapshot-strip-head {
+    min-height: 40px;
+  }
+
+  .snapshot-strip {
+    flex: none;
+  }
+
+  .snapshot-thumb {
+    width: 84px;
+    height: 56px;
+  }
+}

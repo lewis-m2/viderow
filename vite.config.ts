@@ -35,9 +35,19 @@ export default defineConfig({
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
           { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Puts "Row Coach" in Android's share menu for videos (Google Photos, Gallery, WhatsApp).
+        // The service worker catches the shared file (see public/share-target-sw.js).
+        share_target: {
+          action: `${base}share-target`,
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { files: [{ name: 'video', accept: ['video/*'] }] },
+        },
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Runs before Workbox's own handlers, so it sees the share POST first.
+        importScripts: ['share-target-sw.js'],
       },
     }),
   ],

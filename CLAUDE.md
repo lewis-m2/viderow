@@ -145,7 +145,7 @@ Screens (portrait unless noted):
 ## Known risks
 
 - Backwards stepping laggy → frame cache; if still poor, Flutter.
-- Android's photo picker (`accept="video/*"`) can hand Chrome a file it can't read (`NotReadableError`, file named like `1000062870`). Found on the user's Samsung in milestone 1 → the main Open button uses a file input with no `accept` (opens the Files chooser, which works); the photo picker is only a secondary option.
+- Android's photo picker (`accept="video/*"`) can hand Chrome a file it can't read (`NotReadableError`, file named like `1000062870`). Found on the user's Samsung in milestone 1, and later confirmed for ordinary videos too → the Open button uses a file input with no `accept` (opens the Files chooser, which works) and the photo picker button was removed. The quick route is the **share target**: Share › Row Coach from Google Photos/Gallery (manifest `share_target` + `public/share-target-sw.js` parks the file in Cache Storage and opens `?shared=1`). Only works in the installed app; after the manifest changed the user may need to remove and re-add the home-screen app.
 - HEVC videos may not decode via WebCodecs on some phones → seek fallback, or user turns off the camera's "high efficiency" setting.
 - WhatsApp may drop text shared with an image → also copy note to clipboard.
 - WebM recordings may not play in WhatsApp → prefer MP4.
