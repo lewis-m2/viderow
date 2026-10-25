@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { IconHelp, IconShare, IconStar, IconStarFilled, IconTrash, IconVideo } from '../icons';
 import { deleteVideo, listRecent, storageUsed, updateRecent, type RecentVideo } from '../library';
 import { formatFps, formatLength } from '../format';
+import { applyUpdate, onUpdateReady, updateReady } from '../updates';
 import { HelpScreen } from './HelpScreen';
 import { UnreadableFileError } from '../App';
 
@@ -22,6 +23,8 @@ export function Home({ onOpen, onOpenRecent, externalError, receiving }: Props) 
   const [recents, setRecents] = useState<RecentVideo[] | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [used, setUsed] = useState<number | null>(null);
+  const [hasUpdate, setHasUpdate] = useState(updateReady);
+  useEffect(() => onUpdateReady(() => setHasUpdate(true)), []);
 
   async function refresh() {
     try {
@@ -97,6 +100,12 @@ export function Home({ onOpen, onOpenRecent, externalError, receiving }: Props) 
   return (
     <main class="home">
       <h1 class="home-title">Rowing Video Coach</h1>
+
+      {hasUpdate && (
+        <button class="update-banner" onClick={applyUpdate}>
+          New version ready · tap to update
+        </button>
+      )}
 
       {/* No accept filter: Android shows its general file chooser (Files app), which hands
           Chrome the real file. Android's photo picker (accept="video/*") gave files Chrome
